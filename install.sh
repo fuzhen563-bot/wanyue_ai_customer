@@ -10,6 +10,58 @@
 
 set -e
 
+# 进度条相关变量
+TOTAL_STEPS=10
+CURRENT_STEP=0
+STEP_NAMES=()
+
+# 进度条函数
+show_progress_bar() {
+    local current=$1
+    local total=$2
+    local step_name=$3
+    local width=50
+    
+    # 计算百分比
+    local percent=$((current * 100 / total))
+    local filled=$((width * current / total))
+    local empty=$((width - filled))
+    
+    # 构建进度条
+    printf "\r["
+    printf "%${filled}s" | tr ' ' '='
+    printf "%${empty}s" | tr ' ' '-'
+    printf "] %3d%% %s" "$percent" "$step_name"
+    
+    # 完成后换行
+    if [ $current -eq $total ]; then
+        echo ""
+    fi
+}
+
+# 更新进度
+update_progress() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    local step_name="${STEP_NAMES[$((CURRENT_STEP-1))]}"
+    show_progress_bar $CURRENT_STEP $TOTAL_STEPS "$step_name"
+}
+
+# 初始化进度条步骤
+init_progress_steps() {
+    STEP_NAMES=(
+        "初始化安装环境    "
+        "检测网络并配置镜像  "
+        "检查系统环境      "
+        "配置域名         "
+        "安装Python依赖   "
+        "初始化数据库     "
+        "配置Nginx       "
+        "配置SSL证书     "
+        "配置系统服务     "
+        "启动服务         "
+    )
+}
+
 # 自动检测安装目录
 get_install_dir() {
     local script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -138,6 +190,82 @@ EOF
     echo ""
 }
 
+# 检测网络环境并切换镜像
+detect_and_setup_mirror() {
+    echo ""
+    echo -e "${CYAN}▸ 检测网络环境...${NC}"
+    
+    # 测试连接速度
+    echo -e "  • 检测网络连接..."
+    
+    # 检测是否为大陆用户（通过访问国内网站测试）
+    CN_CHECK=$(curl -s -m 3 https://www.baidu.com -o /dev/null -w "%{http_code}" 2>/dev/null || echo "failed")
+    
+    if [ "$CN_CHECK" = "200" ] || [ "$CN_CHECK" = "301" ] || [ "$CN_CHECK" = "302" ]; then
+        echo -e "  ✓ 检测为中国大陆网络环境"
+        IS_CN=true
+    else
+        # 尝试其他检测方式
+        CN_CHECK=$(curl -s -m 3 https://www.taobao.com -o /dev/null -w "%{http_code}" 2>/dev/null || echo "failed")
+        if [ "$CN_CHECK" = "200" ] || [ "$CN_CHECK" = "301" ] || [ "$CN_CHECK" = "302" ]; then
+            echo -e "  ✓ 检测为中国大陆网络环境"
+            IS_CN=true
+        else
+            echo -e "  • 使用默认网络环境"
+            IS_CN=false
+        fi
+    fi
+    
+    # 配置pip镜像
+    if [ "$IS_CN" = "true" ]; then
+        echo ""
+        echo -e "${YELLOW}▸ 切换为国内镜像源...${NC}"
+        
+        # pip镜像 - 清华/阿里/豆瓣
+        echo -e "  • 配置pip镜像..."
+        mkdir -p ~/.pip
+        cat > ~/.pip/pip.conf << 'PIPEOF'
+[global]
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple
+trusted-host = pypi.tuna.tsinghua.edu.cn
+timeout = 120
+PIPEOF
+        echo -e "    ✓ pip镜像: 清华大学"
+        
+        # Git配置
+        echo -e "  • 配置Git镜像..."
+        git config --global url."https://hub.fastgit.xyz/".insteadOf "https://github.com/"
+        git config --global url."https://ghproxy.com/".insteadOf "https://github.com/"
+        echo -e "    ✓ GitHub镜像: fastgit.xyz"
+        
+        # 配置apt镜像（如果存在）
+        if [ -f /etc/apt/sources.list ]; then
+            # 备份原sources.list
+            cp /etc/apt/sources.list /etc/apt/sources.list.bak 2>/dev/null || true
+            
+            # 检测当前使用的镜像
+            if grep -q "ubuntu.com" /etc/apt/sources.list 2>/dev/null; then
+                # 尝试替换为阿里云镜像
+                sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+                sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+                echo -e "    ✓ apt镜像: 阿里云"
+            fi
+        fi
+        
+        # 配置pip安装镜像（针对本脚本）
+        export PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+        export PIP_TRUSTED_HOST="pypi.tuna.tsinghua.edu.cn"
+        
+        echo -e "${GREEN}  ✓ 镜像配置完成${NC}"
+    else
+        echo -e "  • 使用默认源"
+    fi
+    
+    # 返回检测结果供后续使用
+    echo "$IS_CN" > /tmp/wanyue_cn_mode
+    echo ""
+}
+
 # 检查并安装系统环境
 check_and_install_dependencies() {
     echo ""
@@ -251,16 +379,25 @@ install_dependencies() {
         exit 1
     fi
     
+    # 读取镜像配置（如果存在）
+    if [ -f ~/.pip/pip.conf ]; then
+        MIRROR_PARAM="--index-url https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn"
+    else
+        MIRROR_PARAM=""
+    fi
+    
     # 升级pip
     echo -e "  • 升级pip..."
     $PIP_CMD install --upgrade pip --quiet 2>/dev/null || true
     
-    # 安装依赖
+    # 安装依赖 - 使用镜像
     echo -e "  • 安装核心依赖..."
+    $PIP_CMD install $MIRROR_PARAM fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || \
     $PIP_CMD install fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || true
     
-    # 安装额外依赖
+    # 安装额外依赖 - 使用镜像
     echo -e "  • 安装额外依赖..."
+    $PIP_CMD install $MIRROR_PARAM httpx email-validator APScheduler --quiet 2>/dev/null || \
     $PIP_CMD install httpx email-validator APScheduler --quiet 2>/dev/null || true
     
     echo -e "${GREEN}  ✓ 依赖安装完成${NC}"
@@ -544,6 +681,16 @@ start_service() {
 
 # 完成信息
 show_complete() {
+    # 显示完成进度动画
+    echo ""
+    echo -e "${CYAN}▸ 正在完成安装...${NC}"
+    for i in {1..5}; do
+        printf "\r  "
+        printf "%-20s" "$(echo -e "${GREEN}✓${NC}" | head -c $((i*4)))"
+        sleep 0.2
+    done
+    echo ""
+    
     # 加载域名配置
     if [ -f $INSTALL_DIR/.env.install ]; then
         source $INSTALL_DIR/.env.install
@@ -600,16 +747,50 @@ show_complete() {
 
 # 主函数
 main() {
+    # 初始化进度条
+    init_progress_steps
+    
     show_copyright
     show_welcome
+    
+    # 进度1: 初始化
+    update_progress
+    
+    # 进度2: 网络检测
+    detect_and_setup_mirror
+    update_progress
+    
+    # 进度3: 系统环境
     check_and_install_dependencies
+    update_progress
+    
+    # 进度4: 域名配置
     configure_domain
+    update_progress
+    
+    # 进度5: 安装依赖
     install_dependencies
+    update_progress
+    
+    # 进度6: 初始化数据库
     init_database
+    update_progress
+    
+    # 进度7: 配置Nginx
     configure_nginx
+    update_progress
+    
+    # 进度8: 配置SSL
     configure_ssl
+    update_progress
+    
+    # 进度9: 配置服务
     configure_service
+    update_progress
+    
+    # 进度10: 启动服务
     start_service
+    update_progress
     
     # 复制工具箱到系统
     cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue
