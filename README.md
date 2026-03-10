@@ -38,7 +38,7 @@
 cd /data
 git clone https://github.com/fuzhen563-bot/wanyue_ai_customer.git
 
-cd wanyue-ai-customer
+cd wanyue_ai_customer
 
 # 2. 运行安装脚本
 bash install.sh
