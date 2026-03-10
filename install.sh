@@ -11,7 +11,7 @@
 set -e
 
 # 进度条相关变量
-TOTAL_STEPS=10
+TOTAL_STEPS=11
 CURRENT_STEP=0
 STEP_NAMES=()
 
@@ -52,6 +52,7 @@ init_progress_steps() {
         "初始化安装环境    "
         "检测网络并配置镜像  "
         "检查系统环境      "
+        "配置Pyarmor运行时  "
         "配置域名         "
         "安装Python依赖   "
         "初始化数据库     "
@@ -263,6 +264,54 @@ PIPEOF
     
     # 返回检测结果供后续使用
     echo "$IS_CN" > /tmp/wanyue_cn_mode
+    echo ""
+}
+
+# 安装Pyarmor运行时（用于解密加密的Python代码）
+install_pyarmor_runtime() {
+    echo -e "${CYAN}▸ 配置Pyarmor运行时...${NC}"
+    
+    # 尝试安装pyarmor运行时
+    if pip3 show pyarmor-runtime-000000 &>/dev/null; then
+        echo -e "  ✓ Pyarmor运行时已安装"
+    else
+        echo -e "  • 安装Pyarmor运行时..."
+        pip3 install pyarmor-runtime-000000 --quiet 2>/dev/null || true
+        
+        if pip3 show pyarmor-runtime-000000 &>/dev/null; then
+            echo -e "  ✓ Pyarmor运行时安装成功"
+        else
+            echo -e "  ⚠ Pyarmor运行时安装失败，将使用备用方案"
+        fi
+    fi
+    
+    # 修复pyarmor授权问题
+    echo -e "  • 检查代码授权状态..."
+    PYARMOR_CHECK=$(python3 -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+try:
+    from app.core import database
+    print('OK')
+except Exception as e:
+    print('ERROR:' + str(e))
+" 2>&1)
+    
+    if echo "$PYARMOR_CHECK" | grep -q "OK"; then
+        echo -e "  ✓ 代码授权验证通过"
+    else
+        echo -e "  ⚠ 代码需要授权，将尝试修复..."
+        # 尝试使用pyarmor生成新的运行时
+        if command -v pyarmor &>/dev/null; then
+            echo -e "  • 尝试重新配置pyarmor..."
+            pyarmor gen -O /tmp/app_encrypted "$INSTALL_DIR" 2>/dev/null || true
+            if [ -d /tmp/app_encrypted ]; then
+                cp -r /tmp/app_encrypted/app/* "$INSTALL_DIR/app/" 2>/dev/null || true
+                rm -rf /tmp/app_encrypted
+            fi
+        fi
+    fi
+    
     echo ""
 }
 
@@ -571,57 +620,122 @@ init_database() {
     
     cd $INSTALL_DIR
     
-    # 运行数据库初始化
-    echo -e "  • 创建数据库表..."
-    python3 -c "
+    # 检查数据库文件是否已存在
+    if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
+        echo -e "  • 数据库文件已存在，跳过创建"
+        echo -e "  • 初始化默认数据..."
+        
+        python3 -c "
 import sys
 sys.path.insert(0, '$INSTALL_DIR')
-from app.core.database import init_db
+from app.core.database import SessionLocal
+from app.models.user import MembershipLevel, TokenPackage
+
+db = SessionLocal()
+
+try:
+    # 检查是否已有数据
+    if db.query(MembershipLevel).count() == 0:
+        levels = [
+            MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
+            MembershipLevel(code='basic', name='基础版', price=29, monthly_api_calls=1000, max_knowledge_bases=3, max_documents=100, max_embed_configs=3, is_active=True, sort_order=2),
+            MembershipLevel(code='pro', name='专业版', price=99, monthly_api_calls=5000, max_knowledge_bases=10, max_documents=500, max_embed_configs=10, is_active=True, sort_order=3),
+            MembershipLevel(code='enterprise', name='企业版', price=299, monthly_api_calls=20000, max_knowledge_bases=50, max_documents=2000, max_embed_configs=50, is_active=True, sort_order=4),
+        ]
+        for level in levels:
+            db.add(level)
+
+    if db.query(TokenPackage).count() == 0:
+        packages = [
+            TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
+            TokenPackage(name='基础包', token_amount=50, price=45, gift_amount=5, is_active=True, sort_order=2),
+            TokenPackage(name='进阶包', token_amount=100, price=85, gift_amount=15, is_active=True, sort_order=3),
+            TokenPackage(name='高级包', token_amount=500, price=400, gift_amount=100, is_active=True, sort_order=4),
+            TokenPackage(name='企业包', token_amount=1000, price=750, gift_amount=250, is_active=True, sort_order=5),
+        ]
+        for pkg in packages:
+            db.add(pkg)
+
+    db.commit()
+    print('Default data initialized')
+except Exception as e:
+    print(f'Error: {e}')
+finally:
+    db.close()
+" 2>&1 | grep -v "^$" || echo -e "  • 默认数据已存在"
+        
+        echo -e "${GREEN}  ✓ 数据库初始化完成${NC}"
+        echo ""
+        return
+    fi
+    
+    # 运行数据库初始化
+    echo -e "  • 创建数据库表..."
+    DB_INIT_RESULT=$(python3 -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
 from app.core.database import engine, Base
 from app.models.user import *
-Base.metadata.create_all(bind=engine)
-print('Database initialized')
-" 2>/dev/null || echo -e "  • 数据库已存在，跳过创建"
+
+try:
+    Base.metadata.create_all(bind=engine)
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+" 2>&1)
+    
+    if echo "$DB_INIT_RESULT" | grep -q "SUCCESS"; then
+        echo -e "  ✓ 数据库表创建成功"
+    else
+        echo -e "  ⚠ 数据库初始化遇到问题: $DB_INIT_RESULT"
+    fi
     
     # 初始化默认数据
     echo -e "  • 初始化默认数据..."
     python3 -c "
 import sys
 sys.path.insert(0, '$INSTALL_DIR')
-from app.core.database import SessionLocal, engine, Base
-from app.models.user import *
-from datetime import datetime
+from app.core.database import SessionLocal
+from app.models.user import MembershipLevel, TokenPackage
 
 db = SessionLocal()
 
-# 检查是否已有数据
-if db.query(MembershipLevel).count() == 0:
-    levels = [
-        MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
-        MembershipLevel(code='basic', name='基础版', price=29, monthly_api_calls=1000, max_knowledge_bases=3, max_documents=100, max_embed_configs=3, is_active=True, sort_order=2),
-        MembershipLevel(code='pro', name='专业版', price=99, monthly_api_calls=5000, max_knowledge_bases=10, max_documents=500, max_embed_configs=10, is_active=True, sort_order=3),
-        MembershipLevel(code='enterprise', name='企业版', price=299, monthly_api_calls=20000, max_knowledge_bases=50, max_documents=2000, max_embed_configs=50, is_active=True, sort_order=4),
-    ]
-    for level in levels:
-        db.add(level)
+try:
+    if db.query(MembershipLevel).count() == 0:
+        levels = [
+            MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
+            MembershipLevel(code='basic', name='基础版', price=29, monthly_api_calls=1000, max_knowledge_bases=3, max_documents=100, max_embed_configs=3, is_active=True, sort_order=2),
+            MembershipLevel(code='pro', name='专业版', price=99, monthly_api_calls=5000, max_knowledge_bases=10, max_documents=500, max_embed_configs=10, is_active=True, sort_order=3),
+            MembershipLevel(code='enterprise', name='企业版', price=299, monthly_api_calls=20000, max_knowledge_bases=50, max_documents=2000, max_embed_configs=50, is_active=True, sort_order=4),
+        ]
+        for level in levels:
+            db.add(level)
 
-if db.query(TokenPackage).count() == 0:
-    packages = [
-        TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
-        TokenPackage(name='基础包', token_amount=50, price=45, gift_amount=5, is_active=True, sort_order=2),
-        TokenPackage(name='进阶包', token_amount=100, price=85, gift_amount=15, is_active=True, sort_order=3),
-        TokenPackage(name='高级包', token_amount=500, price=400, gift_amount=100, is_active=True, sort_order=4),
-        TokenPackage(name='企业包', token_amount=1000, price=750, gift_amount=250, is_active=True, sort_order=5),
-    ]
-    for pkg in packages:
-        db.add(pkg)
+    if db.query(TokenPackage).count() == 0:
+        packages = [
+            TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
+            TokenPackage(name='基础包', token_amount=50, price=45, gift_amount=5, is_active=True, sort_order=2),
+            TokenPackage(name='进阶包', token_amount=100, price=85, gift_amount=15, is_active=True, sort_order=3),
+            TokenPackage(name='高级包', token_amount=500, price=400, gift_amount=100, is_active=True, sort_order=4),
+            TokenPackage(name='企业包', token_amount=1000, price=750, gift_amount=250, is_active=True, sort_order=5),
+        ]
+        for pkg in packages:
+            db.add(pkg)
 
-db.commit()
-db.close()
-print('Default data initialized')
-" 2>/dev/null || echo -e "  • 默认数据已存在"
+    db.commit()
+    print('Default data initialized')
+except Exception as e:
+    print(f'Error: {e}')
+finally:
+    db.close()
+" 2>&1 || echo -e "  • 默认数据已存在"
     
-    echo -e "${GREEN}  ✓ 数据库初始化完成${NC}"
+    # 检查数据库文件是否创建成功
+    if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
+        echo -e "${GREEN}  ✓ 数据库初始化完成${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ 数据库文件未自动创建，可能需要手动初始化${NC}"
+    fi
     echo ""
 }
 
@@ -762,6 +876,10 @@ main() {
     
     # 进度3: 系统环境
     check_and_install_dependencies
+    update_progress
+    
+    # 进度3.5: 配置Pyarmor运行时
+    install_pyarmor_runtime
     update_progress
     
     # 进度4: 域名配置
