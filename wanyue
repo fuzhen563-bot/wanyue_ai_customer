@@ -7,6 +7,30 @@
 # © 2026 万岳科技 (Wanyue Technology - 分公司)
 # ============================================
 
+# 自动检测安装目录
+get_install_dir() {
+    local script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local script_name="$(basename "${BASH_SOURCE[0]}")"
+    
+    # 如果脚本在/usr/local/bin目录，尝试从符号链接获取真实路径
+    if [[ "$(dirname "$script_path")" == "/usr/local/bin" ]]; then
+        local real_path="$(readlink -f "$script_path" 2>/dev/null || echo "$script_path")"
+        INSTALL_DIR="$(dirname "$real_path")"
+    else
+        INSTALL_DIR="$script_path"
+    fi
+    
+    # 如果目录包含wanyue脚本，则认为是安装目录
+    if [[ -f "$INSTALL_DIR/wanyue" ]]; then
+        echo "$INSTALL_DIR"
+    else
+        echo "$INSTALL_DIR"
+    fi
+}
+
+# 设置安装目录
+INSTALL_DIR=$(get_install_dir)
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -23,8 +47,8 @@ get_server_ip() {
 
 # 加载配置
 load_config() {
-    if [ -f /data/wanyue-ai-customer/.env.install ]; then
-        source /data/wanyue-ai-customer/.env.install
+    if [ -f "$INSTALL_DIR/.env.install" ]; then
+        source "$INSTALL_DIR/.env.install"
     fi
     if [ -z "$SERVER_IP" ]; then
         SERVER_IP=$(get_server_ip)
@@ -51,17 +75,18 @@ show_menu() {
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  ${GREEN}1.${NC}  系统状态检测"
-    echo -e "  ${GREEN}2.${NC}  更换域名"
-    echo -e "  ${GREEN}3.${NC}  一键修复"
-    echo -e "  ${GREEN}4.${NC}  重启服务"
-    echo -e "  ${GREEN}5.${NC}  查看日志"
-    echo -e "  ${GREEN}6.${NC}  服务管理"
-    echo -e "  ${GREEN}7.${NC}  数据库维护"
-    echo -e "  ${GREEN}8.${NC}  重新安装"
-    echo -e "  ${GREEN}9.${NC}  一键卸载"
+    echo -e "  ${GREEN}2.${NC}  一键安装"
+    echo -e "  ${GREEN}3.${NC}  更换域名"
+    echo -e "  ${GREEN}4.${NC}  一键修复"
+    echo -e "  ${GREEN}5.${NC}  重启服务"
+    echo -e "  ${GREEN}6.${NC}  查看日志"
+    echo -e "  ${GREEN}7.${NC}  服务管理"
+    echo -e "  ${GREEN}8.${NC}  数据库维护"
+    echo -e "  ${GREEN}9.${NC}  重新安装"
+    echo -e "  ${GREEN}10.${NC} 一键卸载"
     echo -e "  ${GREEN}0.${NC}  退出"
     echo ""
-    echo -ne "${CYAN}请输入选项 [0-9]: ${NC}"
+    echo -ne "${CYAN}请输入选项 [0-10]: ${NC}"
 }
 
 # 系统状态检测
@@ -117,9 +142,9 @@ check_system() {
     # 检测数据库
     echo ""
     echo -e "${YELLOW}▸ 检测数据库...${NC}"
-    if [ -f /data/wanyue-ai-customer/wanyue_ai.db ]; then
+    if [ -f $INSTALL_DIR/wanyue_ai.db ]; then
         echo -e "  ✓ 数据库文件存在"
-        DB_SIZE=$(du -h /data/wanyue-ai-customer/wanyue_ai.db | cut -f1)
+        DB_SIZE=$(du -h $INSTALL_DIR/wanyue_ai.db | cut -f1)
         echo -e "  • 数据库大小: $DB_SIZE"
     else
         echo -e "  ✗ 数据库文件不存在"
@@ -148,6 +173,84 @@ check_system() {
     echo -e "  • 负载: $(uptime | awk -F'load average:' '{print $2}')"
     
     echo ""
+    read -p "按回车键继续..."
+}
+
+# 一键安装
+install_from_remote() {
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}                           一键安装                                         ${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}请选择程序来源：${NC}"
+    echo "  1) GitHub (https://github.com/fuzhen563-bot/wanyue_ai_customer.git)"
+    echo "  2) Gitee (https://gitee.com/xingdezone/wanyue_ai_customer.git)"
+    echo "  3) 手动输入URL"
+    echo -ne "${GREEN}请输入选项 [1-3]: ${NC}"
+    read SOURCE_CHOICE
+    
+    case $SOURCE_CHOICE in
+        1)
+            DOWNLOAD_URL="https://github.com/fuzhen563-bot/wanyue_ai_customer.git"
+            ;;
+        2)
+            DOWNLOAD_URL="https://gitee.com/xingdezone/wanyue_ai_customer.git"
+            ;;
+        3)
+            echo -ne "${GREEN}请输入程序下载链接: ${NC}"
+            read DOWNLOAD_URL
+            ;;
+        *)
+            echo -e "${RED}无效选项${NC}"
+            return
+            ;;
+    esac
+    
+    if [ -z "$DOWNLOAD_URL" ]; then
+        echo -e "${RED}下载地址不能为空${NC}"
+        return
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}▸ 下载程序...${NC}"
+    
+    TEMP_DIR="/tmp/wanyue_install_$$"
+    mkdir -p "$TEMP_DIR"
+    cd "$TEMP_DIR"
+    
+    # 判断是否为git仓库
+    if [[ "$DOWNLOAD_URL" == *.git ]]; then
+        if git clone "$DOWNLOAD_URL" wanyue_program 2>/dev/null; then
+            echo -e "  ✓ 下载完成"
+            cd wanyue_program
+        else
+            echo -e "${RED}下载失败，请检查链接是否正确${NC}"
+            rm -rf "$TEMP_DIR"
+            read -p "按回车键继续..."
+            return
+        fi
+    else
+        if curl -L -o program.tar.gz "$DOWNLOAD_URL" 2>/dev/null; then
+            echo -e "  ✓ 下载完成"
+            
+            echo ""
+            echo -e "${YELLOW}▸ 解压程序...${NC}"
+            tar -xzf program.tar.gz 2>/dev/null || unzip -o program.tar.gz 2>/dev/null
+            
+            EXTRACTED_DIR=$(ls -d */ 2>/dev/null | head -1)
+            if [ -n "$EXTRACTED_DIR" ]; then
+                cd "$EXTRACTED_DIR"
+            fi
+        else
+            echo -e "${RED}下载失败，请检查链接是否正确${NC}"
+            rm -rf "$TEMP_DIR"
+            read -p "按回车键继续..."
+            return
+        fi
+    fi
+    
     read -p "按回车键继续..."
 }
 
@@ -224,7 +327,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -276,7 +379,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -300,7 +403,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
     }
 }
@@ -337,7 +440,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
     }
 }
@@ -347,8 +450,8 @@ EOF
     esac
     
     # 保存配置
-    echo "DOMAIN=$NEW_DOMAIN" > /data/wanyue-ai-customer/.env.install
-    echo "SERVER_IP=$SERVER_IP" >> /data/wanyue-ai-customer/.env.install
+    echo "DOMAIN=$NEW_DOMAIN" > $INSTALL_DIR/.env.install
+    echo "SERVER_IP=$SERVER_IP" >> $INSTALL_DIR/.env.install
     
     echo ""
     echo -e "${GREEN}✓ 域名更换成功！${NC}"
@@ -382,8 +485,8 @@ fix_system() {
     echo -e "${YELLOW}▸ 1. 重启Python服务...${NC}"
     pkill -f "uvicorn main:app" 2>/dev/null || true
     sleep 1
-    cd /data/wanyue-ai-customer
-    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /data/wanyue-ai-customer/server.log 2>&1 &
+    cd $INSTALL_DIR
+    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $INSTALL_DIR/server.log 2>&1 &
     sleep 2
     
     if pgrep -f "uvicorn main:app" > /dev/null; then
@@ -427,7 +530,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
     }
 }
@@ -447,7 +550,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
     }
 }
@@ -467,7 +570,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
     }
 }
@@ -501,8 +604,8 @@ restart_service() {
     echo -e "${YELLOW}▸ 重启Python服务...${NC}"
     pkill -f "uvicorn main:app" 2>/dev/null || true
     sleep 1
-    cd /data/wanyue-ai-customer
-    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /data/wanyue-ai-customer/server.log 2>&1 &
+    cd $INSTALL_DIR
+    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $INSTALL_DIR/server.log 2>&1 &
     sleep 2
     
     if pgrep -f "uvicorn main:app" > /dev/null; then
@@ -541,10 +644,10 @@ view_logs() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════════${NC}"
     echo ""
     
-    if [ -f /data/wanyue-ai-customer/server.log ]; then
+    if [ -f $INSTALL_DIR/server.log ]; then
         echo -e "${YELLOW}显示最近50行日志 (Ctrl+C 退出):${NC}"
         echo ""
-        tail -n 50 -f /data/wanyue-ai-customer/server.log
+        tail -n 50 -f $INSTALL_DIR/server.log
     else
         echo -e "${RED}日志文件不存在${NC}"
         read -p "按回车键继续..."
@@ -587,8 +690,8 @@ service_manager() {
         
         case $SChoice in
             1)
-                cd /data/wanyue-ai-customer
-                nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /data/wanyue-ai-customer/server.log 2>&1 &
+                cd $INSTALL_DIR
+                nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $INSTALL_DIR/server.log 2>&1 &
                 sleep 2
                 echo -e "${GREEN}✓ Python服务已启动${NC}"
                 ;;
@@ -599,8 +702,8 @@ service_manager() {
             3)
                 pkill -f "uvicorn main:app" 2>/dev/null || true
                 sleep 1
-                cd /data/wanyue-ai-customer
-                nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /data/wanyue-ai-customer/server.log 2>&1 &
+                cd $INSTALL_DIR
+                nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $INSTALL_DIR/server.log 2>&1 &
                 sleep 2
                 echo -e "${GREEN}✓ Python服务已重启${NC}"
                 ;;
@@ -638,7 +741,7 @@ uninstall_system() {
     echo "  4. 删除系统服务"
     echo "  5. 删除工具箱"
     echo ""
-    echo -e "${YELLOW}注意：数据库文件默认会保留在 /data/wanyue-ai-customer/wanyue_ai.db${NC}"
+    echo -e "${YELLOW}注意：数据库文件默认会保留在 $INSTALL_DIR/wanyue_ai.db${NC}"
     echo ""
     echo -ne "${RED}是否继续卸载? [yes/no]: ${NC}"
     read confirm
@@ -662,7 +765,7 @@ uninstall_system() {
     
     echo ""
     echo -e "${YELLOW}▸ 删除程序文件...${NC}"
-    rm -rf /data/wanyue-ai-customer
+    rm -rf $INSTALL_DIR
     echo -e "  ✓ 已删除"
     
     echo ""
@@ -682,7 +785,7 @@ uninstall_system() {
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${YELLOW}如需重新安装，请运行：${NC}"
-    echo "  bash /data/wanyue-ai-customer/install.sh"
+    echo "  bash $INSTALL_DIR/install.sh"
     echo ""
     
     exit 0
@@ -697,7 +800,7 @@ db_maintenance() {
         echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════════${NC}"
         echo ""
         
-        DB_PATH="/data/wanyue-ai-customer/wanyue_ai.db"
+        DB_PATH="$INSTALL_DIR/wanyue_ai.db"
         
         if [ -f "$DB_PATH" ]; then
             DB_SIZE=$(du -h "$DB_PATH" | cut -f1)
@@ -724,7 +827,7 @@ db_maintenance() {
         
         case $DChoice in
             1)
-                BACKUP_FILE="/data/wanyue-ai-customer/backup_$(date +%Y%m%d_%H%M%S).db"
+                BACKUP_FILE="$INSTALL_DIR/backup_$(date +%Y%m%d_%H%M%S).db"
                 cp "$DB_PATH" "$BACKUP_FILE"
                 echo -e "${GREEN}✓ 备份完成: ${BACKUP_FILE}${NC}"
                 ;;
@@ -732,7 +835,7 @@ db_maintenance() {
                 echo -e "${YELLOW}清理30天前的会话数据...${NC}"
                 python3 -c "
 import sys
-sys.path.insert(0, '/data/wanyue-ai-customer')
+sys.path.insert(0, '$INSTALL_DIR')
 from app.core.database import SessionLocal
 from app.models.user import ChatSession, ChatMessage
 from datetime import datetime, timedelta
@@ -765,10 +868,10 @@ finally:
 # 主循环
 main() {
     # 检查是否为首次运行（需要安装）
-    if [ ! -d /data/wanyue-ai-customer ]; then
+    if [ ! -d $INSTALL_DIR ]; then
         echo -e "${RED}未检测到万岳AI客服系统${NC}"
         echo -e "${YELLOW}请先运行安装脚本：${NC}"
-        echo "  bash /data/wanyue-ai-customer/install.sh"
+        echo "  bash $INSTALL_DIR/install.sh"
         exit 1
     fi
     
@@ -782,33 +885,36 @@ main() {
                 check_system
                 ;;
             2)
-                change_domain
+                install_from_remote
                 ;;
             3)
-                fix_system
+                change_domain
                 ;;
             4)
-                restart_service
+                fix_system
                 ;;
             5)
-                view_logs
+                restart_service
                 ;;
             6)
-                service_manager
+                view_logs
                 ;;
             7)
-                db_maintenance
+                service_manager
                 ;;
             8)
+                db_maintenance
+                ;;
+            9)
                 echo ""
                 echo -e "${YELLOW}将执行重新安装，系统数据将保留...${NC}"
                 echo -ne "${GREEN}是否继续? [y/N]: ${NC}"
                 read confirm
                 if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-                    bash /data/wanyue-ai-customer/install.sh
+                    bash $INSTALL_DIR/install.sh
                 fi
                 ;;
-            9)
+            10)
                 uninstall_system
                 ;;
             0)
