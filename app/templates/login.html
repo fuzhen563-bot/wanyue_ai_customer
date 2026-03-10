@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>登录 - 万岳AI客服</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #00c7be;
+            --primary-light: #30d158;
+            --primary-dark: #00a89c;
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        body { 
+            font-family: 'Noto Sans SC', sans-serif; 
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: #fff; 
+            overflow: hidden;
+        }
+        
+        /* Elegant Liquid Background */
+        .liquid-bg { 
+            position: fixed; 
+            inset: 0; 
+            pointer-events: none; 
+            z-index: 0; 
+            overflow: hidden; 
+        }
+        
+        .liquid-layer { 
+            position: absolute; 
+            border-radius: 50%; 
+            filter: blur(80px); 
+            opacity: 0.4;
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        .liquid-1 { 
+            width: 600px; 
+            height: 600px; 
+            background: radial-gradient(circle, rgba(0,199,190,0.6) 0%, transparent 70%); 
+            top: -200px; 
+            left: -100px; 
+            animation-delay: 0s;
+        }
+        
+        .liquid-2 { 
+            width: 500px; 
+            height: 500px; 
+            background: radial-gradient(circle, rgba(94,92,230,0.5) 0%, transparent 70%); 
+            top: 20%; 
+            right: -150px; 
+            animation-delay: -5s;
+        }
+        
+        .liquid-3 { 
+            width: 400px; 
+            height: 400px; 
+            background: radial-gradient(circle, rgba(191,90,242,0.4) 0%, transparent 70%); 
+            bottom: -100px; 
+            left: 20%; 
+            animation-delay: -10s;
+        }
+        
+        .liquid-4 {
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(0,199,190,0.3) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 15s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(30px, -20px) scale(1.05); }
+            50% { transform: translate(-20px, 30px) scale(1.1); }
+            75% { transform: translate(20px, 20px) scale(1.05); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+            50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.5; }
+        }
+        
+        /* Glass Card */
+        .glass { 
+            position: relative; 
+            z-index: 1; 
+            background: var(--glass-bg);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 48px;
+            width: 100%;
+            max-width: 440px;
+            margin: 20px;
+            box-shadow: var(--glass-shadow);
+            animation: glassIn 0.6s ease-out;
+        }
+        
+        @keyframes glassIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        /* Logo */
+        .logo { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 14px; 
+            margin-bottom: 16px; 
+        }
+        
+        .logo-icon { 
+            width: 52px; 
+            height: 52px; 
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); 
+            border-radius: 16px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 26px;
+            box-shadow: 0 4px 20px rgba(0, 199, 190, 0.4);
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+        
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        
+        .logo-text { 
+            font-size: 28px; 
+            font-weight: 700; 
+            letter-spacing: -0.5px;
+        }
+        
+        .logo-text span { 
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Title */
+        .title { 
+            text-align: center; 
+            margin-bottom: 36px; 
+        }
+        
+        . 
+            font-sizetitle h1 {: 26px; 
+            font-weight: 600; 
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .title p { 
+            font-size: 14px; 
+            color: rgba(255,255,255,0.5); 
+        }
+        
+        .title p a { 
+            color: var(--primary); 
+            text-decoration: none; 
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .title p a:hover {
+            color: var(--primary-light);
+            text-decoration: underline;
+        }
+        
+        /* Form */
+        .form-group { 
+            margin-bottom: 20px; 
+        }
+        
+        .form-label { 
+            display: block; 
+            font-size: 13px; 
+            color: rgba(255,255,255,0.7); 
+            margin-bottom: 8px; 
+            font-weight: 500;
+        }
+        
+        .form-input { 
+            width: 100%; 
+            padding: 16px 20px; 
+            background: rgba(255,255,255,0.06); 
+            border: 1px solid var(--glass-border); 
+            border-radius: 14px; 
+            color: #fff; 
+            font-size: 15px; 
+            outline: none; 
+            transition: all 0.3s;
+        }
+        
+        .form-input::placeholder { 
+            color: rgba(255,255,255,0.35); 
+        }
+        
+        .form-input:focus { 
+            border-color: var(--primary); 
+            background: rgba(255,255,255,0.1);
+            box-shadow: 0 0 0 3px rgba(0,199,190,0.15);
+        }
+        
+        .form-input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        /* Button */
+        .btn { 
+            width: 100%; 
+            padding: 18px; 
+            border-radius: 14px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            border: none; 
+            font-size: 15px;
+            font-family: inherit;
+        }
+        
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); 
+            color: #000;
+            box-shadow: 0 4px 20px rgba(0,199,190,0.3);
+        }
+        
+        .btn-primary:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 30px rgba(0,199,190,0.5);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: var(--primary);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        /* Tabs */
+        .tabs { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 28px; 
+            background: rgba(255,255,255,0.04);
+            padding: 6px;
+            border-radius: 14px;
+        }
+        
+        .tab { 
+            flex: 1; 
+            padding: 14px; 
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            color: rgba(255,255,255,0.6); 
+            cursor: pointer; 
+            text-align: center; 
+            font-weight: 500; 
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        .tab.active { 
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); 
+            color: #000;
+            box-shadow: 0 4px 15px rgba(0,199,190,0.3);
+        }
+        
+        .tab:not(.active):hover {
+            color: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.05);
+        }
+        
+        /* Error */
+        .error { 
+            background: rgba(255,55,95,0.1); 
+            border: 1px solid rgba(255,55,95,0.3); 
+            color: #ff6b8a; 
+            padding: 14px 18px; 
+            border-radius: 12px; 
+            margin-bottom: 20px; 
+            font-size: 13px; 
+            display: none;
+            animation: shake 0.5s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        /* Footer */
+        .footer { 
+            text-align: center; 
+            margin-top: 28px; 
+            font-size: 13px; 
+            color: rgba(255,255,255,0.4); 
+            line-height: 1.6;
+        }
+        
+        .footer a { 
+            color: var(--primary); 
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .footer a:hover {
+            color: var(--primary-light);
+        }
+        
+        /* Divider */
+        .divider { 
+            display: flex; 
+            align-items: center; 
+            gap: 16px; 
+            margin: 28px 0; 
+        }
+        
+        .divider-line { 
+            flex: 1; 
+            height: 1px; 
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); 
+        }
+        
+        .divider span { 
+            font-size: 12px; 
+            color: rgba(255,255,255,0.35); 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+            .glass { 
+                padding: 28px 20px; 
+                border-radius: 20px; 
+                margin: 12px; 
+            }
+            
+            .logo { 
+                margin-bottom: 12px; 
+            }
+            
+            .logo-icon { 
+                width: 44px; 
+                height: 44px; 
+                font-size: 22px; 
+                border-radius: 12px; 
+            }
+            
+            .logo-text { 
+                font-size: 22px; 
+            }
+            
+            .title { 
+                margin-bottom: 24px; 
+            }
+            
+            .title h1 { 
+                font-size: 20px; 
+            }
+            
+            .title p { 
+                font-size: 13px; 
+            }
+            
+            .form-group { 
+                margin-bottom: 16px; 
+            }
+            
+            .form-input { 
+                padding: 14px 16px; 
+                font-size: 14px; 
+                border-radius: 12px; 
+            }
+            
+            .form-label {
+                font-size: 12px;
+            }
+            
+            .btn { 
+                padding: 16px; 
+                font-size: 14px; 
+                border-radius: 12px; 
+            }
+            
+            .tabs { 
+                margin-bottom: 20px; 
+                border-radius: 12px;
+            }
+            
+            .tab { 
+                padding: 12px; 
+                font-size: 13px; 
+            }
+            
+            .footer { 
+                margin-top: 20px; 
+                font-size: 12px; 
+            }
+        }
+        
+        /* Disable liquid on mobile for performance */
+        @media (max-width: 768px) {
+            .liquid-bg { 
+                opacity: 0.2;
+            }
+        }
+        
+        /* Touch optimizations */
+        @media (hover: none) and (pointer: coarse) {
+            * { -webkit-tap-highlight-color: transparent; }
+            .form-input { font-size: 16px !important; }
+            .btn:active { transform: scale(0.98); }
+            .tab:active { transform: scale(0.98); }
+        }
+        
+        /* Input with button group */
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-group .form-input {
+            flex: 1;
+        }
+        
+        .oauth-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        
+        .oauth-btn:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+        
+        .oauth-btn img {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .input-group .btn {
+            width: auto;
+            white-space: nowrap;
+            padding: 14px 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="liquid-bg">
+        <div class="liquid-layer liquid-1"></div>
+        <div class="liquid-layer liquid-2"></div>
+        <div class="liquid-layer liquid-3"></div>
+        <div class="liquid-layer liquid-4"></div>
+    </div>
+    
+    <!-- Choice Modal for Admin -->
+    <div id="roleChoiceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;padding:40px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+            <div style="font-size:48px;margin-bottom:16px;">🎉</div>
+            <h2 style="margin-bottom:8px;color:#fff;">登录成功</h2>
+            <p style="color:#9ca3af;margin-bottom:24px;">请选择您要进入的页面</p>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <button onclick="goToAdmin()" style="padding:16px 24px;background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;">
+                    <i class="fas fa-cogs" style="margin-right:8px;"></i>管理后台
+                </button>
+                <button onclick="goToUser()" style="padding:16px 24px;background:#374151;border:2px solid #4b5563;border-radius:12px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;">
+                    <i class="fas fa-user" style="margin-right:8px;"></i>用户中心
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="glass">
+        <div class="logo">
+            <div class="logo-icon">✨</div>
+            <div class="logo-text">万岳<span>AI</span></div>
+        </div>
+        
+        <div class="title">
+            <h1 id="pageTitle">欢迎回来</h1>
+            <p>还没有账号？<a href="#" onclick="switchTab('register')">立即注册</a></p>
+        </div>
+        
+        <div class="error" id="errorMsg"></div>
+        
+        <div class="tabs">
+            <div class="tab active" id="tab-login" onclick="switchTab('login')">登录</div>
+            <div class="tab" id="tab-register" onclick="switchTab('register')">注册</div>
+        </div>
+        
+        <!-- Login Form -->
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label">邮箱 / 用户名</label>
+                <input type="text" class="form-input" id="loginEmail" placeholder="请输入邮箱或用户名" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">密码</label>
+                <input type="password" class="form-input" id="loginPassword" placeholder="请输入密码" required>
+            </div>
+            <button type="submit" class="btn btn-primary">登录</button>
+        </form>
+        
+        <!-- Register Form -->
+        <form id="registerForm" onsubmit="handleRegister(event)" style="display:none;">
+            <div class="form-group">
+                <label class="form-label">邮箱地址</label>
+                <input type="email" class="form-input" id="regEmail" placeholder="your@email.com" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">验证码</label>
+                <div class="input-group">
+                    <input type="text" class="form-input" id="regCode" placeholder="6位验证码" maxlength="6" required>
+                    <button type="button" class="btn btn-outline" id="sendCodeBtn" onclick="sendRegisterCode()">获取验证码</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">用户名</label>
+                <input type="text" class="form-input" id="regUsername" placeholder="设置用户名" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">密码</label>
+                <input type="password" class="form-input" id="regPassword" placeholder="设置密码" required>
+            </div>
+            <button type="submit" class="btn btn-primary">注册账号</button>
+        </form>
+        
+        <div class="divider" id="oauthDivider" style="display:none;">
+            <div class="divider-line"></div>
+            <span>或</span>
+            <div class="divider-line"></div>
+        </div>
+        
+        <div id="oauthButtons" style="display: none; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;"></div>
+        
+        <div class="footer">
+            <span style="margin-right: 20px;">
+                <a href="/forgot-password" style="color: var(--text-muted);">忘记密码？</a>
+            </span>
+            登录即表示同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a>
+        </div>
+    </div>
+    
+    <script>
+        function switchTab(tab) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegister = document.getElementById('tab-register');
+            const title = document.getElementById('pageTitle');
+            
+            if (tab === 'login') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                tabLogin.classList.add('active');
+                tabRegister.classList.remove('active');
+                title.textContent = '欢迎回来';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                tabLogin.classList.remove('active');
+                tabRegister.classList.add('active');
+                title.textContent = '创建账号';
+            }
+            hideError();
+        }
+        
+        function showRoleChoice() {
+            document.getElementById('roleChoiceModal').style.display = 'flex';
+        }
+        
+        function goToAdmin() {
+            window.location.href = '/admin';
+        }
+        
+        function goToUser() {
+            window.location.href = '/user';
+        }
+        
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+        
+        function showSuccess(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.style.color = '#10b981';
+            el.style.display = 'block';
+        }
+        
+        function hideError() {
+            document.getElementById('errorMsg').style.display = 'none';
+        }
+        
+        async function handleLogin(e) {
+            e.preventDefault();
+            hideError();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            const res = await fetch('/api/auth/login/json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            
+            const data = await res.json();
+            if (res.ok) {
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('userRole', data.user?.role || 'user');
+                if (data.user?.role === 'admin') {
+                    showRoleChoice();
+                } else {
+                    window.location.href = '/user';
+                }
+            } else {
+                const msg = typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || '登录失败');
+                showError(msg);
+            }
+        }
+        
+        async function handleRegister(e) {
+            e.preventDefault();
+            hideError();
+            const email = document.getElementById('regEmail').value;
+            const code = document.getElementById('regCode').value;
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            
+            const res = await fetch(`/api/auth/register?verify_code=${code}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, username, password })
+            });
+            
+            const data = await res.json();
+            if (res.ok) {
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('userRole', data.user?.role || 'user');
+                if (data.user?.role === 'admin') {
+                    showRoleChoice();
+                } else {
+                    window.location.href = '/user';
+                }
+            } else {
+                const msg = typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || '注册失败');
+                showError(msg);
+            }
+        }
+        
+        let countdown = 0;
+        async function sendRegisterCode() {
+            const email = document.getElementById('regEmail').value;
+            const btn = document.getElementById('sendCodeBtn');
+            
+            if (!email || !email.includes('@')) {
+                showError('请输入有效的邮箱地址');
+                return;
+            }
+            
+            if (countdown > 0) return;
+            
+            btn.disabled = true;
+            btn.textContent = '发送中...';
+            
+            try {
+                const res = await fetch(`/api/membership/send-verify-code?email=${encodeURIComponent(email)}&purpose=register`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    hideError();
+                    alert('验证码已发送到您的邮箱');
+                    countdown = 60;
+                    btn.textContent = countdown + 's';
+                    const timer = setInterval(() => {
+                        countdown--;
+                        btn.textContent = countdown + 's';
+                        if (countdown <= 0) {
+                            clearInterval(timer);
+                            btn.disabled = false;
+                            btn.textContent = '获取验证码';
+                        }
+                    }, 1000);
+                } else {
+                    const msg = typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || '发送失败');
+                    showError(msg);
+                    btn.disabled = false;
+                    btn.textContent = '获取验证码';
+                }
+            } catch (err) {
+                showError('网络错误');
+                btn.disabled = false;
+                btn.textContent = '获取验证码';
+            }
+        }
+        
+        async function loadOAuthConfigs() {
+            try {
+                const res = await fetch('/api/oauth/config');
+                const configs = await res.json();
+                
+                if (!configs || configs.length === 0) return;
+                
+                const container = document.getElementById('oauthButtons');
+                const divider = document.getElementById('oauthDivider');
+                
+                const platformIcons = {
+                    'wechat': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/weixin.svg',
+                    'qq': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/tencentqq.svg',
+                    'github': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/github.svg',
+                    'google': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/google.svg'
+                };
+                
+                container.innerHTML = configs.map(c => `
+                    <button type="button" class="oauth-btn" onclick="oauthLogin('${c.platform}')">
+                        <img src="${platformIcons[c.platform] || ''}" onerror="this.style.display='none'" style="width:20px;height:20px;">
+                        ${c.platform_name}
+                    </button>
+                `).join('');
+                
+                container.style.display = 'flex';
+                divider.style.display = 'flex';
+            } catch (err) {
+                console.log('Load OAuth configs error:', err);
+            }
+        }
+        
+        async function oauthLogin(platform) {
+            try {
+                localStorage.setItem('oauth_platform', platform);
+                const res = await fetch('/api/oauth/login/' + platform);
+                const data = await res.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                if (data.auth_url) {
+                    window.location.href = data.auth_url;
+                }
+            } catch (err) {
+                showError('OAuth登录失败');
+            }
+        }
+        
+        async function loadOAuthConfigs() {
+            try {
+                const res = await fetch('/api/oauth/config');
+                const configs = await res.json();
+                
+                if (!configs || configs.length === 0) return;
+                
+                const container = document.getElementById('oauthButtons');
+                const divider = document.getElementById('oauthDivider');
+                
+                const platformIcons = {
+                    'wechat': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/weixin.svg',
+                    'qq': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/tencentqq.svg',
+                    'github': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/github.svg',
+                    'google': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/google.svg'
+                };
+                
+                container.innerHTML = configs.map(c => `
+                    <button type="button" class="oauth-btn" onclick="oauthLogin('${c.platform}')">
+                        <img src="${platformIcons[c.platform] || ''}" onerror="this.style.display='none'" style="width:20px;height:20px;">
+                        ${c.platform_name}
+                    </button>
+                `).join('');
+                
+                container.style.display = 'flex';
+                divider.style.display = 'flex';
+            } catch (err) {
+                console.log('Load OAuth configs error:', err);
+            }
+        }
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('oauth_bind') === '1') {
+            const bindDataStr = sessionStorage.getItem('oauth_bind_data');
+            if (bindDataStr) {
+                const bindData = JSON.parse(bindDataStr);
+                sessionStorage.removeItem('oauth_bind_data');
+                setTimeout(() => {
+                    showOAuthBindModal(bindData);
+                }, 500);
+            }
+        }
+        
+        function showOAuthBindModal(data) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(8px);';
+            modal.innerHTML = `
+                <div style="background:linear-gradient(145deg,rgba(30,41,59,0.95),rgba(15,23,42,0.98));border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:32px;max-width:420px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);position:relative;">
+                    <button onclick="this.closest('.modal-overlay').remove()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div style="text-align:center;margin-bottom:24px;">
+                        <div style="width:64px;height:64px;background:linear-gradient(135deg,#2563eb,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                            <i class="fas fa-link" style="font-size:28px;color:white;"></i>
+                        </div>
+                        <h3 style="margin:0 0 8px;font-size:22px;color:#fff;font-weight:600;">绑定账号</h3>
+                        <p style="color:rgba(255,255,255,0.5);font-size:14px;margin:0;">
+                            您已通过 <span style="color:#60a5fa;font-weight:500;">${data.platform === 'custom' ? '亦梓' : data.platform}</span> 授权
+                        </p>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:16px;background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:24px;">
+                        ${data.avatar ? `<img src="${data.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">` : '<div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;"><i class="fas fa-user" style="color:white;"></i></div>'}
+                        <div>
+                            <div style="font-weight:500;color:#fff;font-size:15px;">${data.nickname || '第三方用户'}</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,0.4);">${data.email || ''}</div>
+                        </div>
+                    </div>
+                    ${data.email ? `
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;color:rgba(255,255,255,0.7);font-size:13px;margin-bottom:8px;">邮箱</label>
+                        <input type="email" id="bindEmail" value="${data.email}" class="form-input" placeholder="邮箱地址" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;">
+                    </div>
+                    ` : `
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;color:rgba(255,255,255,0.7);font-size:13px;margin-bottom:8px;">邮箱地址</label>
+                        <input type="email" id="bindEmail" class="form-input" placeholder="请输入邮箱" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;">
+                    </div>
+                    `}
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;color:rgba(255,255,255,0.7);font-size:13px;margin-bottom:8px;">验证码</label>
+                        <div style="display:flex;gap:10px;">
+                            <input type="text" id="bindCode" class="form-input" placeholder="6位验证码" maxlength="6" style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;">
+                            <button type="button" id="bindSendCode" onclick="sendBindCode()" style="padding:12px 20px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;cursor:pointer;font-size:13px;white-space:nowrap;transition:all 0.3s;">
+                                获取验证码
+                            </button>
+                        </div>
+                    </div>
+                    <div id="bindError" style="display:none;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;"></div>
+                    <div style="margin-bottom:24px;">
+                        <label style="display:block;color:rgba(255,255,255,0.7);font-size:13px;margin-bottom:8px;">密码</label>
+                        <input type="password" id="bindPassword" class="form-input" placeholder="设置登录密码（至少6位）" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;">
+                    </div>
+                    <button type="button" onclick="submitBind('${data.platform}', '${data.openid}')" style="width:100%;padding:14px;background:linear-gradient(135deg,#2563eb,#8b5cf6);border:none;border-radius:12px;color:white;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 15px rgba(37,99,235,0.4);">
+                        绑定并登录
+                    </button>
+                    <p style="text-align:center;color:rgba(255,255,255,0.4);font-size:12px;margin-top:16px;">
+                        绑定即表示同意 <a href="#" style="color:#60a5fa;">服务条款</a> 和 <a href="#" style="color:#60a5fa;">隐私政策</a>
+                    </p>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) modal.remove();
+            });
+        }
+        
+        let bindCountdown = 0;
+        async function sendBindCode() {
+            const email = document.getElementById('bindEmail').value;
+            const btn = document.getElementById('bindSendCode');
+            const bindError = document.getElementById('bindError');
+            
+            if (!email || !email.includes('@')) {
+                if (bindError) {
+                    bindError.textContent = '请输入有效的邮箱地址';
+                    bindError.style.display = 'block';
+                }
+                return;
+            }
+            
+            if (bindCountdown > 0) return;
+            
+            btn.disabled = true;
+            btn.textContent = '发送中...';
+            
+            try {
+                const res = await fetch('/api/membership/send-verify-code?email=' + encodeURIComponent(email) + '&purpose=register', {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    if (bindError) {
+                        bindError.textContent = '验证码已发送到您的邮箱';
+                        bindError.style.color = '#10b981';
+                        bindError.style.background = 'rgba(16,185,129,0.15)';
+                        bindError.style.borderColor = 'rgba(16,185,129,0.3)';
+                        bindError.style.display = 'block';
+                    }
+                    bindCountdown = 60;
+                    btn.textContent = bindCountdown + 's';
+                    const timer = setInterval(() => {
+                        bindCountdown--;
+                        btn.textContent = bindCountdown + 's';
+                        if (bindCountdown <= 0) {
+                            clearInterval(timer);
+                            btn.disabled = false;
+                            btn.textContent = '重新发送';
+                        }
+                    }, 1000);
+                } else {
+                    if (bindError) {
+                        bindError.textContent = data.detail || '发送失败';
+                        bindError.style.color = '#f87171';
+                        bindError.style.background = 'rgba(239,68,68,0.15)';
+                        bindError.style.borderColor = 'rgba(239,68,68,0.3)';
+                        bindError.style.display = 'block';
+                    }
+                    btn.disabled = false;
+                    btn.textContent = '获取验证码';
+                }
+            } catch (err) {
+                if (bindError) {
+                    bindError.textContent = '网络错误';
+                    bindError.style.display = 'block';
+                }
+                btn.disabled = false;
+                btn.textContent = '获取验证码';
+            }
+        }
+        
+        async function submitBind(platform, openid) {
+            console.log('submitBind called', platform, openid);
+            const email = document.getElementById('bindEmail').value;
+            const code = document.getElementById('bindCode').value;
+            const username = document.getElementById('bindUsername') ? document.getElementById('bindUsername').value : '';
+            const password = document.getElementById('bindPassword').value;
+            
+            console.log('email:', email, 'code:', code, 'password:', password);
+            
+            const bindError = document.getElementById('bindError');
+            bindError.style.display = 'none';
+            
+            if (!email || !code || !password) {
+                bindError.textContent = '请填写完整信息';
+                bindError.style.display = 'block';
+                return;
+            }
+            
+            if (!username && document.getElementById('bindUsername')) {
+                bindError.textContent = '请填写用户名';
+                bindError.style.display = 'block';
+                return;
+            }
+            
+            const usernameToUse = username || email.split('@')[0];
+            
+            const bindDataStr = sessionStorage.getItem('oauth_bind_data');
+            let nickname = '';
+            let avatar = '';
+            if (bindDataStr) {
+                const bindData = JSON.parse(bindDataStr);
+                nickname = bindData.nickname || '';
+                avatar = bindData.avatar || '';
+            }
+            
+            try {
+                const params = new URLSearchParams({
+                    platform: platform,
+                    openid: openid,
+                    email: email,
+                    code: code,
+                    username: usernameToUse,
+                    password: password,
+                    nickname: nickname,
+                    avatar: avatar
+                });
+                console.log('Sending request to:', '/api/oauth/register-bind?' + params.toString());
+                const res = await fetch('/api/oauth/register-bind?' + params.toString(), {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                console.log('Response:', data);
+                
+                if (data.access_token) {
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('userRole', data.user?.role || 'user');
+                    if (data.user?.role === 'admin') {
+                        showRoleChoice();
+                    } else {
+                        window.location.href = '/user';
+                    }
+                } else {
+                    bindError.textContent = data.error || '绑定失败';
+                    bindError.style.display = 'block';
+                }
+            } catch (err) {
+                bindError.textContent = '网络错误';
+                bindError.style.display = 'block';
+            }
+        }
+        
+        loadOAuthConfigs();
+    </script>
+</body>
+</html>
