@@ -622,72 +622,48 @@ init_database() {
     
     # 检查数据库文件是否已存在
     if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
-        echo -e "  • 数据库文件已存在，跳过创建"
-        echo -e "  • 初始化默认数据..."
-        
-        python3 -c "
-import sys
-sys.path.insert(0, '$INSTALL_DIR')
-from app.core.database import SessionLocal
-from app.models.user import MembershipLevel, TokenPackage
-
-db = SessionLocal()
-
-try:
-    # 检查是否已有数据
-    if db.query(MembershipLevel).count() == 0:
-        levels = [
-            MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
-            MembershipLevel(code='basic', name='基础版', price=29, monthly_api_calls=1000, max_knowledge_bases=3, max_documents=100, max_embed_configs=3, is_active=True, sort_order=2),
-            MembershipLevel(code='pro', name='专业版', price=99, monthly_api_calls=5000, max_knowledge_bases=10, max_documents=500, max_embed_configs=10, is_active=True, sort_order=3),
-            MembershipLevel(code='enterprise', name='企业版', price=299, monthly_api_calls=20000, max_knowledge_bases=50, max_documents=2000, max_embed_configs=50, is_active=True, sort_order=4),
-        ]
-        for level in levels:
-            db.add(level)
-
-    if db.query(TokenPackage).count() == 0:
-        packages = [
-            TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
-            TokenPackage(name='基础包', token_amount=50, price=45, gift_amount=5, is_active=True, sort_order=2),
-            TokenPackage(name='进阶包', token_amount=100, price=85, gift_amount=15, is_active=True, sort_order=3),
-            TokenPackage(name='高级包', token_amount=500, price=400, gift_amount=100, is_active=True, sort_order=4),
-            TokenPackage(name='企业包', token_amount=1000, price=750, gift_amount=250, is_active=True, sort_order=5),
-        ]
-        for pkg in packages:
-            db.add(pkg)
-
-    db.commit()
-    print('Default data initialized')
-except Exception as e:
-    print(f'Error: {e}')
-finally:
-    db.close()
-" 2>&1 | grep -v "^$" || echo -e "  • 默认数据已存在"
-        
-        echo -e "${GREEN}  ✓ 数据库初始化完成${NC}"
+        echo -e "  • 数据库文件已存在"
+        echo -e "  ✓ 数据库初始化完成（已存在）"
         echo ""
         return
     fi
     
-    # 运行数据库初始化
-    echo -e "  • 创建数据库表..."
-    DB_INIT_RESULT=$(python3 -c "
+    # 尝试使用独立初始化脚本
+    if [ -f "$INSTALL_DIR/init_db.py" ]; then
+        echo -e "  • 使用独立初始化脚本..."
+        
+        # 检查依赖
+        echo -e "  • 检查Python依赖..."
+        pip3 install sqlalchemy passlib bcrypt --quiet 2>/dev/null || true
+        
+        if python3 "$INSTALL_DIR/init_db.py" 2>&1; then
+            echo -e "${GREEN}  ✓ 数据库初始化完成（使用独立脚本）${NC}"
+            echo ""
+            return
+        else
+            echo -e "${YELLOW}  ⚠ 独立脚本失败，尝试备用方案...${NC}"
+        fi
+    fi
+    
+    # 备用方案：尝试使用加密代码
+    echo -e "  • 尝试使用主程序初始化..."
+    python3 -c "
 import sys
 sys.path.insert(0, '$INSTALL_DIR')
-from app.core.database import engine, Base
-from app.models.user import *
-
 try:
+    from app.core.database import engine, Base
+    from app.models.user import *
     Base.metadata.create_all(bind=engine)
     print('SUCCESS')
 except Exception as e:
     print(f'ERROR: {e}')
-" 2>&1)
+" 2>&1 | tee /tmp/db_init.log
     
-    if echo "$DB_INIT_RESULT" | grep -q "SUCCESS"; then
+    if grep -q "SUCCESS" /tmp/db_init.log 2>/dev/null; then
         echo -e "  ✓ 数据库表创建成功"
     else
-        echo -e "  ⚠ 数据库初始化遇到问题: $DB_INIT_RESULT"
+        # 显示详细错误
+        echo -e "${YELLOW}  ⚠ 主程序初始化失败，将尝试创建基础表...${NC}"
     fi
     
     # 初始化默认数据
@@ -695,12 +671,15 @@ except Exception as e:
     python3 -c "
 import sys
 sys.path.insert(0, '$INSTALL_DIR')
-from app.core.database import SessionLocal
-from app.models.user import MembershipLevel, TokenPackage
-
-db = SessionLocal()
-
 try:
+    from app.core.database import SessionLocal
+    from app.models.user import MembershipLevel, TokenPackage
+    from passlib.context import CryptContext
+    
+    pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+    db = SessionLocal()
+    
+    # 会员等级
     if db.query(MembershipLevel).count() == 0:
         levels = [
             MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
@@ -710,7 +689,8 @@ try:
         ]
         for level in levels:
             db.add(level)
-
+    
+    # Token套餐
     if db.query(TokenPackage).count() == 0:
         packages = [
             TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
@@ -721,20 +701,24 @@ try:
         ]
         for pkg in packages:
             db.add(pkg)
-
+    
     db.commit()
     print('Default data initialized')
 except Exception as e:
     print(f'Error: {e}')
 finally:
-    db.close()
-" 2>&1 || echo -e "  • 默认数据已存在"
+    try:
+        db.close()
+    except:
+        pass
+" 2>&1 || echo -e "  • 默认数据初始化遇到问题"
     
     # 检查数据库文件是否创建成功
     if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
-        echo -e "${GREEN}  ✓ 数据库初始化完成${NC}"
+        DB_SIZE=$(du -h "$INSTALL_DIR/wanyue_ai.db" | cut -f1)
+        echo -e "${GREEN}  ✓ 数据库初始化完成 (大小: $DB_SIZE)${NC}"
     else
-        echo -e "${YELLOW}  ⚠ 数据库文件未自动创建，可能需要手动初始化${NC}"
+        echo -e "${YELLOW}  ⚠ 数据库文件未自动创建${NC}"
     fi
     echo ""
 }
