@@ -10,6 +10,15 @@
 
 set -e
 
+# 自动检测安装目录
+get_install_dir() {
+    local script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "$script_path"
+}
+
+INSTALL_DIR=$(get_install_dir)
+CURRENT_DIR=$(pwd)
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -121,7 +130,7 @@ configure_domain() {
     esac
     
     # 保存配置到文件
-    cat > /data/wanyue-ai-customer/.env.install << EOF
+    cat > $INSTALL_DIR/.env.install << EOF
 DOMAIN=$DOMAIN
 SERVER_IP=$SERVER_IP
 EOF
@@ -187,8 +196,8 @@ configure_nginx() {
     echo -e "${CYAN}▸ 配置Nginx...${NC}"
     
     # 加载域名配置
-    if [ -f /data/wanyue-ai-customer/.env.install ]; then
-        source /data/wanyue-ai-customer/.env.install
+    if [ -f $INSTALL_DIR/.env.install ]; then
+        source $INSTALL_DIR/.env.install
     else
         SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
     fi
@@ -223,7 +232,7 @@ server {
     
     # 静态文件缓存
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -319,7 +328,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -347,13 +356,13 @@ EOF
 init_database() {
     echo -e "${CYAN}▸ 初始化数据库...${NC}"
     
-    cd /data/wanyue-ai-customer
+    cd $INSTALL_DIR
     
     # 运行数据库初始化
     echo -e "  • 创建数据库表..."
     python3 -c "
 import sys
-sys.path.insert(0, '/data/wanyue-ai-customer')
+sys.path.insert(0, '$INSTALL_DIR')
 from app.core.database import init_db
 from app.core.database import engine, Base
 from app.models.user import *
@@ -365,7 +374,7 @@ print('Database initialized')
     echo -e "  • 初始化默认数据..."
     python3 -c "
 import sys
-sys.path.insert(0, '/data/wanyue-ai-customer')
+sys.path.insert(0, '$INSTALL_DIR')
 from app.core.database import SessionLocal, engine, Base
 from app.models.user import *
 from datetime import datetime
@@ -417,7 +426,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/data/wanyue-ai-customer
+WorkingDirectory=$INSTALL_DIR
 ExecStart=/usr/local/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
@@ -437,13 +446,13 @@ EOF
 start_service() {
     echo -e "${CYAN}▸ 启动服务...${NC}"
     
-    cd /data/wanyue-ai-customer
+    cd $INSTALL_DIR
     
     # 杀掉旧进程
     pkill -f "uvicorn main:app" 2>/dev/null || true
     
     # 启动新进程
-    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /data/wanyue-ai-customer/server.log 2>&1 &
+    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $INSTALL_DIR/server.log 2>&1 &
     
     sleep 3
     
@@ -460,8 +469,8 @@ start_service() {
 # 完成信息
 show_complete() {
     # 加载域名配置
-    if [ -f /data/wanyue-ai-customer/.env.install ]; then
-        source /data/wanyue-ai-customer/.env.install
+    if [ -f $INSTALL_DIR/.env.install ]; then
+        source $INSTALL_DIR/.env.install
     else
         DOMAIN=""
         SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
@@ -508,7 +517,7 @@ show_complete() {
     echo -e "${YELLOW}© 2026 万岳科技 (Wanyue Technology - 分公司)${NC}"
     echo -e "${GREEN}感谢您的使用！${NC}"
     echo ""
-    echo -e "${CYAN}查看日志: tail -f /data/wanyue-ai-customer/server.log${NC}"
+    echo -e "${CYAN}查看日志: tail -f $INSTALL_DIR/server.log${NC}"
     echo -e "${CYAN}重启服务: systemctl restart wanyue-ai${NC}"
     echo ""
 }
@@ -527,7 +536,7 @@ main() {
     start_service
     
     # 复制工具箱到系统
-    cp /data/wanyue-ai-customer/wanyue /usr/local/bin/wanyue
+    cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue
     chmod +x /usr/local/bin/wanyue
     
     show_complete
@@ -535,8 +544,12 @@ main() {
 
 # 检查是否已安装
 check_installed() {
-    if [ -d /data/wanyue-ai-customer ] && [ -f /data/wanyue-ai-customer/wanyue ]; then
+    # 检查是否已有数据库文件（表示已安装）
+    if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
         return 0  # 已安装
+    # 检查是否有已初始化的数据库内容
+    elif [ -d "$INSTALL_DIR/app" ] && python3 -c "import sys; sys.path.insert(0, '$INSTALL_DIR'); from app.core.database import SessionLocal; db = SessionLocal(); db.query(__import__('app.models.user', fromlist=['User']).User).first()" 2>/dev/null; then
+        return 0
     else
         return 1  # 未安装
     fi
@@ -575,11 +588,13 @@ show_first_install_menu() {
 
 # 执行主函数
 if check_installed; then
-    # 已安装，显示工具箱
+    # 已安装，复制工具箱并显示
+    cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue 2>/dev/null || true
+    chmod +x /usr/local/bin/wanyue 2>/dev/null || true
     /usr/local/bin/wanyue
 else
-    # 未安装，先下载工具箱
-    cp /data/wanyue-ai-customer/wanyue /usr/local/bin/wanyue 2>/dev/null || true
+    # 未安装，先复制工具箱到系统，然后安装
+    cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue 2>/dev/null || true
     chmod +x /usr/local/bin/wanyue 2>/dev/null || true
     show_first_install_menu
 fi
