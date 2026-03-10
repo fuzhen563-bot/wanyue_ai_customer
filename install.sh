@@ -894,9 +894,11 @@ main() {
     start_service
     update_progress
     
-    # 复制工具箱到系统
-    cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue
+    # 复制工具箱到系统（使用符号链接）
+    echo -e "${CYAN}▸ 配置工具箱...${NC}"
+    ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue
     chmod +x /usr/local/bin/wanyue
+    echo -e "  ✓ 工具箱已配置 (命令: wanyue)"
     
     show_complete
 }
@@ -947,13 +949,13 @@ show_first_install_menu() {
 
 # 执行主函数
 if check_installed; then
-    # 已安装，复制工具箱并显示
-    cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue 2>/dev/null || true
+    # 已安装，确保工具箱可用
+    ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue 2>/dev/null || true
     chmod +x /usr/local/bin/wanyue 2>/dev/null || true
     /usr/local/bin/wanyue
 else
-    # 未安装，先复制工具箱到系统，然后安装
-    cp $INSTALL_DIR/wanyue /usr/local/bin/wanyue 2>/dev/null || true
+    # 未安装，先配置工具箱，然后安装
+    ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue 2>/dev/null || true
     chmod +x /usr/local/bin/wanyue 2>/dev/null || true
     show_first_install_menu
 fi
