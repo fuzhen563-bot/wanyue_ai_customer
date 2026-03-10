@@ -138,26 +138,92 @@ EOF
     echo ""
 }
 
-# 检查系统
-check_system() {
+# 检查并安装系统环境
+check_and_install_dependencies() {
     echo ""
-    echo -e "${CYAN}▸ 检查系统环境...${NC}"
+    echo -e "${CYAN}▸ 检查并配置系统环境...${NC}"
     
-    # 检查Python
+    # 检测系统类型
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    else
+        OS="unknown"
+    fi
+    
+    echo -e "  • 检测到系统: ${OS}"
+    
+    # 安装基础依赖
+    echo -e "  • 安装系统基础依赖..."
+    
+    case $OS in
+        ubuntu|debian)
+            apt-get update -qq
+            apt-get install -y -qq python3 python3-pip python3-venv nginx git curl wget net-tools sqlite3 certbot python3-certbot-nginx 2>/dev/null || true
+            ;;
+        centos|redhat|rocky|alma)
+            yum install -y python3 python3-pip nginx git curl wget net-tools sqlite3 2>/dev/null || true
+            # 安装certbot
+            if ! command -v certbot &> /dev/null; then
+                yum install -y certbot python3-certbot-nginx 2>/dev/null || true
+            fi
+            ;;
+        almalinux|rhel)
+            dnf install -y python3 python3-pip nginx git curl wget net-tools sqlite3 2>/dev/null || true
+            ;;
+        *)
+            # 尝试通用安装
+            apt-get update -qq 2>/dev/null || yum update -y 2>/dev/null || true
+            apt-get install -y -qq python3 python3-pip nginx git curl wget net-tools sqlite3 certbot python3-certbot-nginx 2>/dev/null || \
+            yum install -y python3 python3-pip nginx git curl wget net-tools sqlite3 2>/dev/null || true
+            ;;
+    esac
+    
+    # 创建Python符号链接（如果不存在）
     if ! command -v python3 &> /dev/null; then
-        echo -e "${RED}✗ Python3 未安装，请先安装Python 3.8+${NC}"
+        echo -e "  ⚠ Python3 未安装，请手动安装"
+    else
+        # 确保python命令可用
+        if ! command -v python &> /dev/null && command -v python3 &> /dev/null; then
+            ln -sf $(which python3) /usr/bin/python 2>/dev/null || true
+        fi
+        # 确保pip可用
+        if ! command -v pip3 &> /dev/null && command -v python3 &> /dev/null; then
+            python3 -m ensurepip --default-pip 2>/dev/null || true
+            python3 -m pip --version 2>/dev/null || curl -sS https://bootstrap.pypa.io/get-pip.py | python3 2>/dev/null || true
+        fi
+    fi
+    
+    # 确保pip3命令可用
+    if ! command -v pip3 &> /dev/null && command -v python &> /dev/null; then
+        python -m ensurepip --default-pip 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}  ✓ 系统环境配置完成${NC}"
+    echo ""
+    
+    # 验证Python和pip安装
+    echo -e "${CYAN}▸ 验证环境安装...${NC}"
+    
+    if ! command -v python3 &> /dev/null; then
+        echo -e "${RED}✗ Python3 安装失败，请手动安装${NC}"
         exit 1
     fi
     
     PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
     echo -e "  ✓ Python 版本: $PYTHON_VERSION"
     
-    # 检查pip
-    if ! command -v pip3 &> /dev/null && ! python3 -m pip &> /dev/null; then
-        echo -e "${RED}✗ pip 未安装，请先安装pip${NC}"
-        exit 1
+    # 确保pip可用
+    if ! command -v pip3 &> /dev/null; then
+        echo -e "  • 尝试安装pip..."
+        python3 -m ensurepip --default-pip 2>/dev/null || curl -sS https://bootstrap.pypa.io/get-pip.py | python3 2>/dev/null || true
     fi
-    echo -e "  ✓ pip 已安装"
+    
+    if command -v pip3 &> /dev/null || python3 -m pip --version &> /dev/null; then
+        echo -e "  ✓ pip 已可用"
+    else
+        echo -e "${YELLOW}⚠ pip 安装可能不完整，将尝试继续安装${NC}"
+    fi
     
     # 检查内存
     MEMORY=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}' || echo "1024")
@@ -167,7 +233,7 @@ check_system() {
         echo -e "  ✓ 内存: ${MEMORY}MB"
     fi
     
-    echo -e "${GREEN}  ✓ 系统检查完成${NC}"
+    echo -e "${GREEN}  ✓ 环境验证通过${NC}"
     echo ""
 }
 
@@ -175,17 +241,27 @@ check_system() {
 install_dependencies() {
     echo -e "${CYAN}▸ 安装Python依赖...${NC}"
     
+    # 确认pip命令可用
+    if command -v pip3 &> /dev/null; then
+        PIP_CMD="pip3"
+    elif python3 -m pip --version &> /dev/null; then
+        PIP_CMD="python3 -m pip"
+    else
+        echo -e "${RED}✗ pip 不可用，请先安装pip${NC}"
+        exit 1
+    fi
+    
     # 升级pip
     echo -e "  • 升级pip..."
-    pip3 install --upgrade pip --quiet 2>/dev/null || python3 -m pip install --upgrade pip --quiet 2>/dev/null || true
+    $PIP_CMD install --upgrade pip --quiet 2>/dev/null || true
     
     # 安装依赖
     echo -e "  • 安装核心依赖..."
-    pip3 install fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || true
+    $PIP_CMD install fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || true
     
     # 安装额外依赖
     echo -e "  • 安装额外依赖..."
-    pip3 install httpx email-validator APScheduler --quiet 2>/dev/null || true
+    $PIP_CMD install httpx email-validator APScheduler --quiet 2>/dev/null || true
     
     echo -e "${GREEN}  ✓ 依赖安装完成${NC}"
     echo ""
@@ -526,7 +602,7 @@ show_complete() {
 main() {
     show_copyright
     show_welcome
-    check_system
+    check_and_install_dependencies
     configure_domain
     install_dependencies
     init_database
