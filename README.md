@@ -36,7 +36,7 @@
 ```bash
 # 1. 下载安装脚本
 cd /data
-git clone (https://github.com/fuzhen563-bot/wanyue_ai_customer.git)
+git clone https://github.com/fuzhen563-bot/wanyue_ai_customer.git
 
 cd wanyue-ai-customer
 
