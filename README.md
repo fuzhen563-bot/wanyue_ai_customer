@@ -36,8 +36,9 @@
 ```bash
 # 1. 下载安装脚本
 cd /data
-git clone <你的仓库地址> wanyue-ai-customer
-cd wanyue-ai-customer
+git clone https://github.com/fuzhen563-bot/wanyue_ai_customer.git
+
+cd wanyue_ai_customer
 
 # 2. 运行安装脚本
 bash install.sh
@@ -64,11 +65,19 @@ bash install.sh
 
 ### 工具箱使用
 
-安装完成后，输入以下命令进入工具箱：
+安装完成后，工具箱会自动复制到系统路径，可以直接运行：
 
 ```bash
 wanyue
 ```
+
+或者从任意目录调用：
+
+```bash
+/usr/local/bin/wanyue
+```
+
+工具箱支持任意安装目录，会自动检测安装路径。
 
 工具箱功能：
 1. 系统状态检测
@@ -338,283 +347,6 @@ wanyue-ai-customer/
 ### 数据库类型
 - 默认：SQLite (`wanyue_ai.db`)
 - 可切换：MySQL、PostgreSQL
-
-### 数据表结构
-
-#### 1. users - 用户表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| email | String(255) | 邮箱（唯一） |
-| username | String(100) | 用户名（唯一） |
-| hashed_password | String(255) | 加密密码 |
-| full_name | String(100) | 姓名 |
-| role | String(20) | 角色：user/admin |
-| is_active | Boolean | 是否激活 |
-| balance | Float | 余额（元） |
-| token_balance | Float | Token余额 |
-| total_recharge | Float | 累计充值 |
-| total_consume | Float | 累计消费 |
-| phone | String(20) | 手机号 |
-| company | String(200) | 公司 |
-| title | String(100) | 职位 |
-| website | String(500) | 网站 |
-| bio | Text | 个人简介 |
-| avatar_url | String(500) | 头像URL |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 2. api_keys - API密钥表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| user_id | Integer | 用户ID |
-| provider | String(50) | 提供商：openai/anthropic/ollama等 |
-| key_name | String(100) | 密钥名称 |
-| api_key | String(500) | API密钥（加密） |
-| base_url | String(500) | 自定义API地址 |
-| model_name | String(100) | 默认模型 |
-| is_active | Boolean | 是否启用 |
-| is_default | Boolean | 是否默认 |
-| created_at | DateTime | 创建时间 |
-
-#### 3. knowledge_bases - 知识库表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| user_id | Integer | 所属用户ID |
-| name | String(200) | 知识库名称 |
-| description | Text | 描述 |
-| embedding_model | String(100) | 嵌入模型 |
-| chunk_size | Integer | 分段大小 |
-| chunk_overlap | Integer | 分段重叠 |
-| document_count | Integer | 文档数量 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 4. documents - 文档表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| knowledge_base_id | Integer | 知识库ID |
-| filename | String(500) | 文件名 |
-| file_type | String(50) | 文件类型 |
-| file_size | Integer | 文件大小（字节） |
-| content | Text | 提取的文本内容 |
-| char_count | Integer | 字符数 |
-| status | String(20) | 状态：pending/processing/completed/failed |
-| error_message | Text | 错误信息 |
-| created_at | DateTime | 创建时间 |
-
-#### 5. embed_configs - 嵌入配置表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| user_id | Integer | 用户ID |
-| name | String(200) | 配置名称 |
-| auth_code | String(100) | 授权码（唯一） |
-| allowed_domains | Text | 允许的域名（逗号分隔） |
-| welcome_message | String(500) | 欢迎语 |
-| system_prompt | Text | 系统提示词 |
-| theme_color | String(20) | 主题色 |
-| position | String(20) | 位置：left/right |
-| primary_knowledge_base_id | Integer | 主知识库ID |
-| default_llm_provider | String(50) | 默认LLM提供商 |
-| default_model | String(100) | 默认模型 |
-| api_key_id | Integer | 用户API密钥ID |
-| is_active | Boolean | 是否启用 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 6. chat_sessions - 对话会话表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| user_id | Integer | 用户ID（可为空） |
-| embed_config_id | Integer | 嵌入配置ID |
-| session_key | String(100) | 会话标识（匿名） |
-| visitor_info | String(500) | 访客信息（JSON） |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-| message_count | Integer | 消息数 |
-
-#### 7. chat_messages - 对话消息表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| session_id | Integer | 会话ID |
-| role | String(20) | 角色：user/assistant |
-| content | Text | 消息内容 |
-| token_count | Integer | Token数量 |
-| model_used | String(100) | 使用的模型 |
-| created_at | DateTime | 创建时间 |
-
-#### 8. membership_levels - 会员等级表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| name | String(50) | 等级名称 |
-| code | String(20) | 等级代码：free/basic/pro/enterprise |
-| price | Float | 月价格 |
-| year_price | Float | 年价格 |
-| max_knowledge_bases | Integer | 最大知识库数 |
-| max_documents | Integer | 最大文档数 |
-| max_document_size | Integer | 单个文档大小（MB） |
-| max_embed_configs | Integer | 最大嵌入配置数 |
-| monthly_free_tokens | Integer | 每月免费Token |
-| allow_custom_llm | Boolean | 允许自定义LLM |
-| allow_api_access | Boolean | 允许API访问 |
-| is_active | Boolean | 是否启用 |
-| sort_order | Integer | 排序 |
-| created_at | DateTime | 创建时间 |
-
-#### 9. user_memberships - 用户会员表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| user_id | Integer | 用户ID |
-| level_id | Integer | 会员等级ID |
-| start_date | DateTime | 开始时间 |
-| end_date | DateTime | 结束时间 |
-| is_active | Boolean | 是否有效 |
-| tokens_used | Integer | 已使用Token |
-| tokens_reset_at | DateTime | 重置时间 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 10. orders - 订单表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| order_no | String(50) | 订单号（唯一） |
-| user_id | Integer | 用户ID |
-| level_id | Integer | 会员等级ID |
-| amount | Float | 金额 |
-| pay_type | String(20) | 支付方式：wechat/alipay/epay/balance |
-| status | String(20) | 状态：pending/paid/cancelled/refunded |
-| order_type | String(20) | 类型：recharge/membership/token/consume |
-| model_name | String(100) | 模型名称 |
-| token_count | Integer | Token数量 |
-| input_tokens | Integer | 输入Token |
-| output_tokens | Integer | 输出Token |
-| pay_time | DateTime | 支付时间 |
-| created_at | DateTime | 创建时间 |
-
-#### 11. token_packages - Token套餐表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| name | String(50) | 套餐名称 |
-| token_amount | Integer | Token数量 |
-| price | Float | 价格（元） |
-| gift_amount | Integer | 赠送Token |
-| is_active | Boolean | 是否启用 |
-| sort_order | Integer | 排序 |
-| created_at | DateTime | 创建时间 |
-
-#### 12. payment_configs - 支付配置表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| alipay_enabled | Boolean | 支付宝启用 |
-| alipay_app_id | String(50) | 支付宝AppID |
-| alipay_private_key | String(500) | 支付宝私钥 |
-| alipay_public_key | String(500) | 支付宝公钥 |
-| alipay_notify_url | String(200) | 支付宝回调地址 |
-| wechat_enabled | Boolean | 微信支付启用 |
-| wechat_mch_id | String(50) | 微信商户号 |
-| wechat_api_key | String(100) | 微信API密钥 |
-| wechat_app_id | String(50) | 微信AppID |
-| wechat_notify_url | String(200) | 微信回调地址 |
-| epay_enabled | Boolean | 易支付启用 |
-| epay_url | String(200) | 易支付地址 |
-| epay_pid | String(50) | 易支付商户号 |
-| epay_key | String(100) | 易支付密钥 |
-| epay_notify_url | String(200) | 易支付回调地址 |
-| is_active | Boolean | 是否启用 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 13. email_configs - 邮箱配置表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| smtp_host | String(100) | SMTP服务器 |
-| smtp_port | Integer | SMTP端口 |
-| smtp_user | String(100) | SMTP用户名 |
-| smtp_password | String(100) | SMTP密码 |
-| use_tls | Boolean | 是否使用TLS |
-| from_email | String(100) | 发件人邮箱 |
-| from_name | String(100) | 发件人名称 |
-| notify_membership_expire_enabled | Boolean | 会员到期提醒启用 |
-| notify_membership_expire_days | Integer | 提前提醒天数 |
-| notify_membership_purchase_enabled | Boolean | 会员购买提醒启用 |
-| notify_login_enabled | Boolean | 登录提醒启用 |
-| notify_api_failure_enabled | Boolean | API失效提醒启用 |
-| is_active | Boolean | 是否启用 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 14. email_templates - 邮件模板表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| template_code | String(50) | 模板代码（唯一） |
-| template_name | String(100) | 模板名称 |
-| subject | String(200) | 邮件主题 |
-| content | Text | 邮件内容（HTML） |
-| is_active | Boolean | 是否启用 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-#### 15. email_verify_codes - 邮箱验证码表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| email | String(255) | 邮箱 |
-| code | String(6) | 验证码 |
-| purpose | String(20) | 用途：register/change_email |
-| expires_at | DateTime | 过期时间 |
-| used | Boolean | 是否已使用 |
-| created_at | DateTime | 创建时间 |
-
-#### 16. llm_models - LLM模型配置表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | Integer | 主键 |
-| provider | String(50) | 提供商 |
-| model_name | String(100) | 模型名称 |
-| model_display_name | String(100) | 显示名称 |
-| model_type | String(20) | 类型：chat/embedding |
-| api_base_url | String(500) | API地址 |
-| api_key | String(500) | API密钥（加密） |
-| price_per_1k_input | Float | 输入价格（元/千Token） |
-| price_per_1k_output | Float | 输出价格（元/千Token） |
-| max_tokens | Integer | 最大Token数 |
-| is_enabled | Boolean | 是否启用 |
-| is_default | Boolean | 是否默认 |
-| is_active | Boolean | 是否可用 |
-| sort_order | Integer | 排序 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
----
 
 ## API接口说明
 

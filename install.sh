@@ -10,6 +10,79 @@
 
 set -e
 
+# 进度条相关变量
+TOTAL_STEPS=11
+CURRENT_STEP=0
+STEP_NAMES=()
+
+# 进度条函数
+show_progress_bar() {
+    local current=$1
+    local total=$2
+    local step_name=$3
+    local width=50
+    
+    # 计算百分比
+    local percent=$((current * 100 / total))
+    local filled=$((width * current / total))
+    local empty=$((width - filled))
+    
+    # 构建进度条
+    printf "\r["
+    printf "%${filled}s" | tr ' ' '='
+    printf "%${empty}s" | tr ' ' '-'
+    printf "] %3d%% %s" "$percent" "$step_name"
+    
+    # 完成后换行
+    if [ $current -eq $total ]; then
+        echo ""
+    fi
+}
+
+# 更新进度
+update_progress() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    local step_name="${STEP_NAMES[$((CURRENT_STEP-1))]}"
+    show_progress_bar $CURRENT_STEP $TOTAL_STEPS "$step_name"
+}
+
+# 初始化进度条步骤
+init_progress_steps() {
+    STEP_NAMES=(
+        "初始化安装环境    "
+        "检测网络并配置镜像  "
+        "检查系统环境      "
+        "配置Pyarmor运行时  "
+        "配置域名         "
+        "安装Python依赖   "
+        "初始化数据库     "
+        "配置Nginx       "
+        "配置SSL证书     "
+        "配置系统服务     "
+        "启动服务         "
+    )
+}
+
+# 自动检测安装目录
+get_install_dir() {
+    # 优先使用环境变量
+    if [ -n "$INSTALL_DIR" ]; then
+        echo "$INSTALL_DIR"
+        return
+    fi
+    
+    # 获取脚本所在目录
+    local script_path
+    script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "$script_path"
+}
+
+# 确保INSTALL_DIR在脚本开始时就设置正确
+if [ -z "$INSTALL_DIR" ]; then
+    INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+CURRENT_DIR=$(pwd)
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -121,7 +194,7 @@ configure_domain() {
     esac
     
     # 保存配置到文件
-    cat > /data/wanyue-ai-customer/.env.install << EOF
+    cat > $INSTALL_DIR/.env.install << EOF
 DOMAIN=$DOMAIN
 SERVER_IP=$SERVER_IP
 EOF
@@ -129,26 +202,216 @@ EOF
     echo ""
 }
 
-# 检查系统
-check_system() {
+# 检测网络环境并切换镜像
+detect_and_setup_mirror() {
     echo ""
-    echo -e "${CYAN}▸ 检查系统环境...${NC}"
+    echo -e "${CYAN}▸ 检测网络环境...${NC}"
     
-    # 检查Python
+    # 测试连接速度
+    echo -e "  • 检测网络连接..."
+    
+    # 检测是否为大陆用户（通过访问国内网站测试）
+    CN_CHECK=$(curl -s -m 3 https://www.baidu.com -o /dev/null -w "%{http_code}" 2>/dev/null || echo "failed")
+    
+    if [ "$CN_CHECK" = "200" ] || [ "$CN_CHECK" = "301" ] || [ "$CN_CHECK" = "302" ]; then
+        echo -e "  ✓ 检测为中国大陆网络环境"
+        IS_CN=true
+    else
+        # 尝试其他检测方式
+        CN_CHECK=$(curl -s -m 3 https://www.taobao.com -o /dev/null -w "%{http_code}" 2>/dev/null || echo "failed")
+        if [ "$CN_CHECK" = "200" ] || [ "$CN_CHECK" = "301" ] || [ "$CN_CHECK" = "302" ]; then
+            echo -e "  ✓ 检测为中国大陆网络环境"
+            IS_CN=true
+        else
+            echo -e "  • 使用默认网络环境"
+            IS_CN=false
+        fi
+    fi
+    
+    # 配置pip镜像
+    if [ "$IS_CN" = "true" ]; then
+        echo ""
+        echo -e "${YELLOW}▸ 切换为国内镜像源...${NC}"
+        
+        # pip镜像 - 清华/阿里/豆瓣
+        echo -e "  • 配置pip镜像..."
+        mkdir -p ~/.pip
+        cat > ~/.pip/pip.conf << 'PIPEOF'
+[global]
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple
+trusted-host = pypi.tuna.tsinghua.edu.cn
+timeout = 120
+PIPEOF
+        echo -e "    ✓ pip镜像: 清华大学"
+        
+        # Git配置
+        echo -e "  • 配置Git镜像..."
+        git config --global url."https://hub.fastgit.xyz/".insteadOf "https://github.com/"
+        git config --global url."https://ghproxy.com/".insteadOf "https://github.com/"
+        echo -e "    ✓ GitHub镜像: fastgit.xyz"
+        
+        # 配置apt镜像（如果存在）
+        if [ -f /etc/apt/sources.list ]; then
+            # 备份原sources.list
+            cp /etc/apt/sources.list /etc/apt/sources.list.bak 2>/dev/null || true
+            
+            # 检测当前使用的镜像
+            if grep -q "ubuntu.com" /etc/apt/sources.list 2>/dev/null; then
+                # 尝试替换为阿里云镜像
+                sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+                sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+                echo -e "    ✓ apt镜像: 阿里云"
+            fi
+        fi
+        
+        # 配置pip安装镜像（针对本脚本）
+        export PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+        export PIP_TRUSTED_HOST="pypi.tuna.tsinghua.edu.cn"
+        
+        echo -e "${GREEN}  ✓ 镜像配置完成${NC}"
+    else
+        echo -e "  • 使用默认源"
+    fi
+    
+    # 返回检测结果供后续使用
+    echo "$IS_CN" > /tmp/wanyue_cn_mode
+    echo ""
+}
+
+# 安装Pyarmor运行时（用于解密加密的Python代码）
+install_pyarmor_runtime() {
+    echo -e "${CYAN}▸ 配置Pyarmor运行时...${NC}"
+    
+    # 尝试安装pyarmor运行时
+    if pip3 show pyarmor-runtime-000000 &>/dev/null; then
+        echo -e "  ✓ Pyarmor运行时已安装"
+    else
+        echo -e "  • 安装Pyarmor运行时..."
+        pip3 install pyarmor-runtime-000000 --quiet 2>/dev/null || true
+        
+        if pip3 show pyarmor-runtime-000000 &>/dev/null; then
+            echo -e "  ✓ Pyarmor运行时安装成功"
+        else
+            echo -e "  ⚠ Pyarmor运行时安装失败，将使用备用方案"
+        fi
+    fi
+    
+    # 修复pyarmor授权问题
+    echo -e "  • 检查代码授权状态..."
+    PYARMOR_CHECK=$(python3 -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+try:
+    from app.core import database
+    print('OK')
+except Exception as e:
+    print('ERROR:' + str(e))
+" 2>&1)
+    
+    if echo "$PYARMOR_CHECK" | grep -q "OK"; then
+        echo -e "  ✓ 代码授权验证通过"
+    else
+        echo -e "  ⚠ 代码需要授权，将尝试修复..."
+        # 尝试使用pyarmor生成新的运行时
+        if command -v pyarmor &>/dev/null; then
+            echo -e "  • 尝试重新配置pyarmor..."
+            pyarmor gen -O /tmp/app_encrypted "$INSTALL_DIR" 2>/dev/null || true
+            if [ -d /tmp/app_encrypted ]; then
+                cp -r /tmp/app_encrypted/app/* "$INSTALL_DIR/app/" 2>/dev/null || true
+                rm -rf /tmp/app_encrypted
+            fi
+        fi
+    fi
+    
+    echo ""
+}
+
+# 检查并安装系统环境
+check_and_install_dependencies() {
+    echo ""
+    echo -e "${CYAN}▸ 检查并配置系统环境...${NC}"
+    
+    # 检测系统类型
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    else
+        OS="unknown"
+    fi
+    
+    echo -e "  • 检测到系统: ${OS}"
+    
+    # 安装基础依赖
+    echo -e "  • 安装系统基础依赖..."
+    
+    case $OS in
+        ubuntu|debian)
+            apt-get update -qq
+            apt-get install -y -qq python3 python3-pip python3-venv nginx git curl wget net-tools sqlite3 certbot python3-certbot-nginx 2>/dev/null || true
+            ;;
+        centos|redhat|rocky|alma)
+            yum install -y python3 python3-pip nginx git curl wget net-tools sqlite3 2>/dev/null || true
+            # 安装certbot
+            if ! command -v certbot &> /dev/null; then
+                yum install -y certbot python3-certbot-nginx 2>/dev/null || true
+            fi
+            ;;
+        almalinux|rhel)
+            dnf install -y python3 python3-pip nginx git curl wget net-tools sqlite3 2>/dev/null || true
+            ;;
+        *)
+            # 尝试通用安装
+            apt-get update -qq 2>/dev/null || yum update -y 2>/dev/null || true
+            apt-get install -y -qq python3 python3-pip nginx git curl wget net-tools sqlite3 certbot python3-certbot-nginx 2>/dev/null || \
+            yum install -y python3 python3-pip nginx git curl wget net-tools sqlite3 2>/dev/null || true
+            ;;
+    esac
+    
+    # 创建Python符号链接（如果不存在）
     if ! command -v python3 &> /dev/null; then
-        echo -e "${RED}✗ Python3 未安装，请先安装Python 3.8+${NC}"
+        echo -e "  ⚠ Python3 未安装，请手动安装"
+    else
+        # 确保python命令可用
+        if ! command -v python &> /dev/null && command -v python3 &> /dev/null; then
+            ln -sf $(which python3) /usr/bin/python 2>/dev/null || true
+        fi
+        # 确保pip可用
+        if ! command -v pip3 &> /dev/null && command -v python3 &> /dev/null; then
+            python3 -m ensurepip --default-pip 2>/dev/null || true
+            python3 -m pip --version 2>/dev/null || curl -sS https://bootstrap.pypa.io/get-pip.py | python3 2>/dev/null || true
+        fi
+    fi
+    
+    # 确保pip3命令可用
+    if ! command -v pip3 &> /dev/null && command -v python &> /dev/null; then
+        python -m ensurepip --default-pip 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}  ✓ 系统环境配置完成${NC}"
+    echo ""
+    
+    # 验证Python和pip安装
+    echo -e "${CYAN}▸ 验证环境安装...${NC}"
+    
+    if ! command -v python3 &> /dev/null; then
+        echo -e "${RED}✗ Python3 安装失败，请手动安装${NC}"
         exit 1
     fi
     
     PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
     echo -e "  ✓ Python 版本: $PYTHON_VERSION"
     
-    # 检查pip
-    if ! command -v pip3 &> /dev/null && ! python3 -m pip &> /dev/null; then
-        echo -e "${RED}✗ pip 未安装，请先安装pip${NC}"
-        exit 1
+    # 确保pip可用
+    if ! command -v pip3 &> /dev/null; then
+        echo -e "  • 尝试安装pip..."
+        python3 -m ensurepip --default-pip 2>/dev/null || curl -sS https://bootstrap.pypa.io/get-pip.py | python3 2>/dev/null || true
     fi
-    echo -e "  ✓ pip 已安装"
+    
+    if command -v pip3 &> /dev/null || python3 -m pip --version &> /dev/null; then
+        echo -e "  ✓ pip 已可用"
+    else
+        echo -e "${YELLOW}⚠ pip 安装可能不完整，将尝试继续安装${NC}"
+    fi
     
     # 检查内存
     MEMORY=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}' || echo "1024")
@@ -158,7 +421,7 @@ check_system() {
         echo -e "  ✓ 内存: ${MEMORY}MB"
     fi
     
-    echo -e "${GREEN}  ✓ 系统检查完成${NC}"
+    echo -e "${GREEN}  ✓ 环境验证通过${NC}"
     echo ""
 }
 
@@ -166,17 +429,36 @@ check_system() {
 install_dependencies() {
     echo -e "${CYAN}▸ 安装Python依赖...${NC}"
     
+    # 确认pip命令可用
+    if command -v pip3 &> /dev/null; then
+        PIP_CMD="pip3"
+    elif python3 -m pip --version &> /dev/null; then
+        PIP_CMD="python3 -m pip"
+    else
+        echo -e "${RED}✗ pip 不可用，请先安装pip${NC}"
+        exit 1
+    fi
+    
+    # 读取镜像配置（如果存在）
+    if [ -f ~/.pip/pip.conf ]; then
+        MIRROR_PARAM="--index-url https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn"
+    else
+        MIRROR_PARAM=""
+    fi
+    
     # 升级pip
     echo -e "  • 升级pip..."
-    pip3 install --upgrade pip --quiet 2>/dev/null || python3 -m pip install --upgrade pip --quiet 2>/dev/null || true
+    $PIP_CMD install --upgrade pip --quiet 2>/dev/null || true
     
-    # 安装依赖
+    # 安装依赖 - 使用镜像
     echo -e "  • 安装核心依赖..."
-    pip3 install fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || true
+    $PIP_CMD install $MIRROR_PARAM fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || \
+    $PIP_CMD install fastapi uvicorn sqlalchemy pydantic python-multipart python-jose passlib bcrypt python-dotenv aiofiles --quiet 2>/dev/null || true
     
-    # 安装额外依赖
+    # 安装额外依赖 - 使用镜像
     echo -e "  • 安装额外依赖..."
-    pip3 install httpx email-validator APScheduler --quiet 2>/dev/null || true
+    $PIP_CMD install $MIRROR_PARAM httpx email-validator APScheduler --quiet 2>/dev/null || \
+    $PIP_CMD install httpx email-validator APScheduler --quiet 2>/dev/null || true
     
     echo -e "${GREEN}  ✓ 依赖安装完成${NC}"
     echo ""
@@ -187,8 +469,8 @@ configure_nginx() {
     echo -e "${CYAN}▸ 配置Nginx...${NC}"
     
     # 加载域名配置
-    if [ -f /data/wanyue-ai-customer/.env.install ]; then
-        source /data/wanyue-ai-customer/.env.install
+    if [ -f $INSTALL_DIR/.env.install ]; then
+        source $INSTALL_DIR/.env.install
     else
         SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
     fi
@@ -223,7 +505,7 @@ server {
     
     # 静态文件缓存
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -319,7 +601,7 @@ server {
     }
     
     location /static {
-        alias /data/wanyue-ai-customer/app/static;
+        alias $INSTALL_DIR/app/static;
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
@@ -347,59 +629,108 @@ EOF
 init_database() {
     echo -e "${CYAN}▸ 初始化数据库...${NC}"
     
-    cd /data/wanyue-ai-customer
+    cd $INSTALL_DIR
     
-    # 运行数据库初始化
-    echo -e "  • 创建数据库表..."
+    # 检查数据库文件是否已存在
+    if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
+        echo -e "  • 数据库文件已存在"
+        echo -e "  ✓ 数据库初始化完成（已存在）"
+        echo ""
+        return
+    fi
+    
+    # 尝试使用独立初始化脚本
+    if [ -f "$INSTALL_DIR/init_db.py" ]; then
+        echo -e "  • 使用独立初始化脚本..."
+        
+        # 检查依赖
+        echo -e "  • 检查Python依赖..."
+        pip3 install sqlalchemy passlib bcrypt --quiet 2>/dev/null || true
+        
+        if python3 "$INSTALL_DIR/init_db.py" 2>&1; then
+            echo -e "${GREEN}  ✓ 数据库初始化完成（使用独立脚本）${NC}"
+            echo ""
+            return
+        else
+            echo -e "${YELLOW}  ⚠ 独立脚本失败，尝试备用方案...${NC}"
+        fi
+    fi
+    
+    # 备用方案：尝试使用加密代码
+    echo -e "  • 尝试使用主程序初始化..."
     python3 -c "
 import sys
-sys.path.insert(0, '/data/wanyue-ai-customer')
-from app.core.database import init_db
-from app.core.database import engine, Base
-from app.models.user import *
-Base.metadata.create_all(bind=engine)
-print('Database initialized')
-" 2>/dev/null || echo -e "  • 数据库已存在，跳过创建"
+sys.path.insert(0, '$INSTALL_DIR')
+try:
+    from app.core.database import engine, Base
+    from app.models.user import *
+    Base.metadata.create_all(bind=engine)
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+" 2>&1 | tee /tmp/db_init.log
+    
+    if grep -q "SUCCESS" /tmp/db_init.log 2>/dev/null; then
+        echo -e "  ✓ 数据库表创建成功"
+    else
+        # 显示详细错误
+        echo -e "${YELLOW}  ⚠ 主程序初始化失败，将尝试创建基础表...${NC}"
+    fi
     
     # 初始化默认数据
     echo -e "  • 初始化默认数据..."
     python3 -c "
 import sys
-sys.path.insert(0, '/data/wanyue-ai-customer')
-from app.core.database import SessionLocal, engine, Base
-from app.models.user import *
-from datetime import datetime
-
-db = SessionLocal()
-
-# 检查是否已有数据
-if db.query(MembershipLevel).count() == 0:
-    levels = [
-        MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
-        MembershipLevel(code='basic', name='基础版', price=29, monthly_api_calls=1000, max_knowledge_bases=3, max_documents=100, max_embed_configs=3, is_active=True, sort_order=2),
-        MembershipLevel(code='pro', name='专业版', price=99, monthly_api_calls=5000, max_knowledge_bases=10, max_documents=500, max_embed_configs=10, is_active=True, sort_order=3),
-        MembershipLevel(code='enterprise', name='企业版', price=299, monthly_api_calls=20000, max_knowledge_bases=50, max_documents=2000, max_embed_configs=50, is_active=True, sort_order=4),
-    ]
-    for level in levels:
-        db.add(level)
-
-if db.query(TokenPackage).count() == 0:
-    packages = [
-        TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
-        TokenPackage(name='基础包', token_amount=50, price=45, gift_amount=5, is_active=True, sort_order=2),
-        TokenPackage(name='进阶包', token_amount=100, price=85, gift_amount=15, is_active=True, sort_order=3),
-        TokenPackage(name='高级包', token_amount=500, price=400, gift_amount=100, is_active=True, sort_order=4),
-        TokenPackage(name='企业包', token_amount=1000, price=750, gift_amount=250, is_active=True, sort_order=5),
-    ]
-    for pkg in packages:
-        db.add(pkg)
-
-db.commit()
-db.close()
-print('Default data initialized')
-" 2>/dev/null || echo -e "  • 默认数据已存在"
+sys.path.insert(0, '$INSTALL_DIR')
+try:
+    from app.core.database import SessionLocal
+    from app.models.user import MembershipLevel, TokenPackage
+    from passlib.context import CryptContext
     
-    echo -e "${GREEN}  ✓ 数据库初始化完成${NC}"
+    pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+    db = SessionLocal()
+    
+    # 会员等级
+    if db.query(MembershipLevel).count() == 0:
+        levels = [
+            MembershipLevel(code='free', name='免费版', price=0, monthly_api_calls=100, max_knowledge_bases=1, max_documents=10, max_embed_configs=1, is_active=True, sort_order=1),
+            MembershipLevel(code='basic', name='基础版', price=29, monthly_api_calls=1000, max_knowledge_bases=3, max_documents=100, max_embed_configs=3, is_active=True, sort_order=2),
+            MembershipLevel(code='pro', name='专业版', price=99, monthly_api_calls=5000, max_knowledge_bases=10, max_documents=500, max_embed_configs=10, is_active=True, sort_order=3),
+            MembershipLevel(code='enterprise', name='企业版', price=299, monthly_api_calls=20000, max_knowledge_bases=50, max_documents=2000, max_embed_configs=50, is_active=True, sort_order=4),
+        ]
+        for level in levels:
+            db.add(level)
+    
+    # Token套餐
+    if db.query(TokenPackage).count() == 0:
+        packages = [
+            TokenPackage(name='体验包', token_amount=10, price=10, gift_amount=0, is_active=True, sort_order=1),
+            TokenPackage(name='基础包', token_amount=50, price=45, gift_amount=5, is_active=True, sort_order=2),
+            TokenPackage(name='进阶包', token_amount=100, price=85, gift_amount=15, is_active=True, sort_order=3),
+            TokenPackage(name='高级包', token_amount=500, price=400, gift_amount=100, is_active=True, sort_order=4),
+            TokenPackage(name='企业包', token_amount=1000, price=750, gift_amount=250, is_active=True, sort_order=5),
+        ]
+        for pkg in packages:
+            db.add(pkg)
+    
+    db.commit()
+    print('Default data initialized')
+except Exception as e:
+    print(f'Error: {e}')
+finally:
+    try:
+        db.close()
+    except:
+        pass
+" 2>&1 || echo -e "  • 默认数据初始化遇到问题"
+    
+    # 检查数据库文件是否创建成功
+    if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
+        DB_SIZE=$(du -h "$INSTALL_DIR/wanyue_ai.db" | cut -f1)
+        echo -e "${GREEN}  ✓ 数据库初始化完成 (大小: $DB_SIZE)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ 数据库文件未自动创建${NC}"
+    fi
     echo ""
 }
 
@@ -417,7 +748,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/data/wanyue-ai-customer
+WorkingDirectory=$INSTALL_DIR
 ExecStart=/usr/local/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
@@ -437,13 +768,13 @@ EOF
 start_service() {
     echo -e "${CYAN}▸ 启动服务...${NC}"
     
-    cd /data/wanyue-ai-customer
+    cd $INSTALL_DIR
     
     # 杀掉旧进程
     pkill -f "uvicorn main:app" 2>/dev/null || true
     
     # 启动新进程
-    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /data/wanyue-ai-customer/server.log 2>&1 &
+    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > $INSTALL_DIR/server.log 2>&1 &
     
     sleep 3
     
@@ -459,9 +790,19 @@ start_service() {
 
 # 完成信息
 show_complete() {
+    # 显示完成进度动画
+    echo ""
+    echo -e "${CYAN}▸ 正在完成安装...${NC}"
+    for i in {1..5}; do
+        printf "\r  "
+        printf "%-20s" "$(echo -e "${GREEN}✓${NC}" | head -c $((i*4)))"
+        sleep 0.2
+    done
+    echo ""
+    
     # 加载域名配置
-    if [ -f /data/wanyue-ai-customer/.env.install ]; then
-        source /data/wanyue-ai-customer/.env.install
+    if [ -f $INSTALL_DIR/.env.install ]; then
+        source $INSTALL_DIR/.env.install
     else
         DOMAIN=""
         SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
@@ -508,35 +849,78 @@ show_complete() {
     echo -e "${YELLOW}© 2026 万岳科技 (Wanyue Technology - 分公司)${NC}"
     echo -e "${GREEN}感谢您的使用！${NC}"
     echo ""
-    echo -e "${CYAN}查看日志: tail -f /data/wanyue-ai-customer/server.log${NC}"
+    echo -e "${CYAN}查看日志: tail -f $INSTALL_DIR/server.log${NC}"
     echo -e "${CYAN}重启服务: systemctl restart wanyue-ai${NC}"
     echo ""
 }
 
 # 主函数
 main() {
+    # 初始化进度条
+    init_progress_steps
+    
     show_copyright
     show_welcome
-    check_system
-    configure_domain
-    install_dependencies
-    init_database
-    configure_nginx
-    configure_ssl
-    configure_service
-    start_service
     
-    # 复制工具箱到系统
-    cp /data/wanyue-ai-customer/wanyue /usr/local/bin/wanyue
+    # 进度1: 初始化
+    update_progress
+    
+    # 进度2: 网络检测
+    detect_and_setup_mirror
+    update_progress
+    
+    # 进度3: 系统环境
+    check_and_install_dependencies
+    update_progress
+    
+    # 进度3.5: 配置Pyarmor运行时
+    install_pyarmor_runtime
+    update_progress
+    
+    # 进度4: 域名配置
+    configure_domain
+    update_progress
+    
+    # 进度5: 安装依赖
+    install_dependencies
+    update_progress
+    
+    # 进度6: 初始化数据库
+    init_database
+    update_progress
+    
+    # 进度7: 配置Nginx
+    configure_nginx
+    update_progress
+    
+    # 进度8: 配置SSL
+    configure_ssl
+    update_progress
+    
+    # 进度9: 配置服务
+    configure_service
+    update_progress
+    
+    # 进度10: 启动服务
+    start_service
+    update_progress
+    
+    # 复制工具箱到系统（使用符号链接）
+    echo -e "${CYAN}▸ 配置工具箱...${NC}"
+    ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue
     chmod +x /usr/local/bin/wanyue
+    echo -e "  ✓ 工具箱已配置 (命令: wanyue)"
     
     show_complete
 }
 
 # 检查是否已安装
 check_installed() {
-    if [ -d /data/wanyue-ai-customer ] && [ -f /data/wanyue-ai-customer/wanyue ]; then
+    # 使用已设置的安装目录
+    if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
         return 0  # 已安装
+    elif [ -d "$INSTALL_DIR/app" ]; then
+        return 0
     else
         return 1  # 未安装
     fi
@@ -574,12 +958,33 @@ show_first_install_menu() {
 }
 
 # 执行主函数
+# 自动检测安装目录 - 优先使用脚本所在目录，其次检查常见安装位置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 如果脚本目录没有wanyue文件，尝试常见安装目录
+if [ ! -f "$SCRIPT_DIR/wanyue" ]; then
+    for dir in "/data/wanyue-ai-customer" "/opt/wanyue-ai-customer" "/var/www/wanyue-ai-customer"; do
+        if [ -f "$dir/wanyue" ]; then
+            SCRIPT_DIR="$dir"
+            break
+        fi
+    done
+fi
+
+INSTALL_DIR="$SCRIPT_DIR"
+
+# 确保目标目录存在
+mkdir -p /usr/local/bin
+
+# 创建工具箱符号链接（指向安装目录的wanyue）
+ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue
+chmod +x /usr/local/bin/wanyue 2>/dev/null || true
+chmod +x "$INSTALL_DIR/wanyue" 2>/dev/null || true
+
 if check_installed; then
     # 已安装，显示工具箱
     /usr/local/bin/wanyue
 else
-    # 未安装，先下载工具箱
-    cp /data/wanyue-ai-customer/wanyue /usr/local/bin/wanyue 2>/dev/null || true
-    chmod +x /usr/local/bin/wanyue 2>/dev/null || true
+    # 未安装，显示安装菜单
     show_first_install_menu
 fi
