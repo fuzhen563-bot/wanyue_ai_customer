@@ -65,11 +65,22 @@ init_progress_steps() {
 
 # 自动检测安装目录
 get_install_dir() {
-    local script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # 优先使用环境变量
+    if [ -n "$INSTALL_DIR" ]; then
+        echo "$INSTALL_DIR"
+        return
+    fi
+    
+    # 获取脚本所在目录
+    local script_path
+    script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     echo "$script_path"
 }
 
-INSTALL_DIR=$(get_install_dir)
+# 确保INSTALL_DIR在脚本开始时就设置正确
+if [ -z "$INSTALL_DIR" ]; then
+    INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 CURRENT_DIR=$(pwd)
 
 # 颜色定义
@@ -905,11 +916,10 @@ main() {
 
 # 检查是否已安装
 check_installed() {
-    # 检查是否已有数据库文件（表示已安装）
+    # 使用已设置的安装目录
     if [ -f "$INSTALL_DIR/wanyue_ai.db" ]; then
         return 0  # 已安装
-    # 检查是否有已初始化的数据库内容
-    elif [ -d "$INSTALL_DIR/app" ] && python3 -c "import sys; sys.path.insert(0, '$INSTALL_DIR'); from app.core.database import SessionLocal; db = SessionLocal(); db.query(__import__('app.models.user', fromlist=['User']).User).first()" 2>/dev/null; then
+    elif [ -d "$INSTALL_DIR/app" ]; then
         return 0
     else
         return 1  # 未安装
@@ -948,14 +958,33 @@ show_first_install_menu() {
 }
 
 # 执行主函数
+# 自动检测安装目录 - 优先使用脚本所在目录，其次检查常见安装位置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 如果脚本目录没有wanyue文件，尝试常见安装目录
+if [ ! -f "$SCRIPT_DIR/wanyue" ]; then
+    for dir in "/data/wanyue-ai-customer" "/opt/wanyue-ai-customer" "/var/www/wanyue-ai-customer"; do
+        if [ -f "$dir/wanyue" ]; then
+            SCRIPT_DIR="$dir"
+            break
+        fi
+    done
+fi
+
+INSTALL_DIR="$SCRIPT_DIR"
+
+# 确保目标目录存在
+mkdir -p /usr/local/bin
+
+# 创建工具箱符号链接（指向安装目录的wanyue）
+ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue
+chmod +x /usr/local/bin/wanyue 2>/dev/null || true
+chmod +x "$INSTALL_DIR/wanyue" 2>/dev/null || true
+
 if check_installed; then
-    # 已安装，确保工具箱可用
-    ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue 2>/dev/null || true
-    chmod +x /usr/local/bin/wanyue 2>/dev/null || true
+    # 已安装，显示工具箱
     /usr/local/bin/wanyue
 else
-    # 未安装，先配置工具箱，然后安装
-    ln -sf "$INSTALL_DIR/wanyue" /usr/local/bin/wanyue 2>/dev/null || true
-    chmod +x /usr/local/bin/wanyue 2>/dev/null || true
+    # 未安装，显示安装菜单
     show_first_install_menu
 fi
